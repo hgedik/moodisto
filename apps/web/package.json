@@ -1,0 +1,35 @@
+{
+  "name": "@moodisto/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Moodisto web client: the customer venue page, the venue console and the venue player.",
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev --port 3000",
+    "start": "next start --port 3000",
+    "lint": "eslint src --max-warnings 0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"@moodisto/web is covered by the end-to-end suite\"",
+    "test:unit": "echo \"@moodisto/web is covered by the end-to-end suite\""
+  },
+  "dependencies": {
+    "@moodisto/shared-types": "workspace:*",
+    "@moodisto/validation": "workspace:*",
+    "next": "^15.3.1",
+    "qrcode": "^1.5.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "socket.io-client": "^4.8.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.5",
+    "@types/node": "^22.15.3",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.1.5",
+    "typescript": "^5.8.3"
+  }
+}

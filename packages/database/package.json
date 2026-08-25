@@ -1,0 +1,38 @@
+{
+  "name": "@moodisto/database",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prisma schema, client factory and seed data for Moodisto.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "prisma"
+  ],
+  "scripts": {
+    "generate": "dotenv -e ../../.env -- prisma generate",
+    "migrate": "dotenv -e ../../.env -- prisma migrate dev",
+    "migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
+    "migrate:test": "dotenv -e ../../.env -- node ./scripts/migrate-test-database.mjs",
+    "reset": "dotenv -e ../../.env -- prisma migrate reset --force",
+    "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
+    "studio": "dotenv -e ../../.env -- prisma studio",
+    "build": "pnpm run generate && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test prisma --max-warnings 0",
+    "test": "vitest run",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@moodisto/shared-types": "workspace:*",
+    "@prisma/client": "^6.7.0"
+  },
+  "devDependencies": {
+    "argon2": "^0.43.0",
+    "prisma": "^6.7.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.2",
+    "dotenv-cli": "^8.0.0"
+  }
+}

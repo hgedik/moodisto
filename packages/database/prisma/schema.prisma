@@ -1,0 +1,327 @@
+// Moodisto persistence model.
+//
+// PostgreSQL is the single source of truth for the queue and for player state. The browser and
+// any music provider are treated as replaceable details: nothing here stores a YouTube video id
+// under a YouTube-specific name, only `provider` + `providerTrackId`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MusicProvider {
+  YOUTUBE
+}
+
+enum RequestType {
+  NORMAL
+  PRIORITY
+  DJ
+  PLAY_NEXT
+}
+
+enum RequestStatus {
+  PENDING_PAYMENT
+  PENDING
+  ACCEPTED
+  REJECTED
+  QUEUED
+  PLAYING
+  COMPLETED
+  CANCELLED
+  EXPIRED
+  FAILED
+}
+
+enum QueueItemState {
+  QUEUED
+  PLAYING
+  COMPLETED
+  REMOVED
+  FAILED
+}
+
+enum PlaybackState {
+  IDLE
+  LOADING
+  PLAYING
+  PAUSED
+  ERROR
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum BlockedRuleType {
+  TRACK
+  CHANNEL
+  KEYWORD
+}
+
+enum VenueUserRole {
+  OWNER
+  MANAGER
+  DJ
+}
+
+model Venue {
+  id                        String   @id @default(cuid())
+  slug                      String   @unique
+  name                      String
+  description               String?
+  address                   String?
+  latitude                  Float?
+  longitude                 Float?
+  timezone                  String   @default("Europe/Istanbul")
+  logoUrl                   String?
+  active                    Boolean  @default(true)
+  duplicateCooldownMinutes  Int      @default(30)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  users            VenueUser[]
+  pricing          VenueRequestPricing?
+  qrCodes          VenueQrCode[]
+  songRequests     SongRequest[]
+  queueItems       QueueItem[]
+  blockedRules     BlockedMusicRule[]
+  playerState      PlayerState?
+  playerLease      PlayerLease?
+  customerSessions CustomerSession[]
+
+  @@index([active])
+  @@index([latitude, longitude])
+  @@map("venues")
+}
+
+model VenueUser {
+  id           String        @id @default(cuid())
+  venueId      String
+  email        String        @unique
+  passwordHash String
+  name         String
+  role         VenueUserRole @default(MANAGER)
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([venueId])
+  @@map("venue_users")
+}
+
+/// Per-venue request pricing. Money is always an integer amount of the currency's minor unit.
+model VenueRequestPricing {
+  id                String   @id @default(cuid())
+  venueId           String   @unique
+  currency          String   @default("TRY")
+  normalEnabled     Boolean  @default(true)
+  normalPriceMinor  Int      @default(0)
+  priorityEnabled   Boolean  @default(true)
+  priorityPriceMinor Int     @default(2000)
+  djEnabled         Boolean  @default(true)
+  djPriceMinor      Int      @default(3000)
+  playNextEnabled   Boolean  @default(true)
+  playNextPriceMinor Int     @default(5000)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@map("venue_request_pricing")
+}
+
+model VenueQrCode {
+  id         String    @id @default(cuid())
+  venueId    String
+  token      String    @unique
+  tableLabel String?
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime?
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([venueId, active])
+  @@map("venue_qr_codes")
+}
+
+/// Anonymous customer identity. No name, no email: joining a venue must stay frictionless.
+model CustomerSession {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  venueId      String?
+  tableLabel   String?
+  createdAt    DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+
+  venue        Venue?        @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  songRequests SongRequest[]
+
+  @@index([venueId])
+  @@map("customer_sessions")
+}
+
+/// A playable track, identified only by provider + provider track id.
+model Track {
+  id              String        @id @default(cuid())
+  provider        MusicProvider
+  providerTrackId String
+  title           String
+  artist          String?
+  channelName     String?
+  channelId       String?
+  thumbnailUrl    String?
+  durationSeconds Int?
+  metadata        Json          @default("{}")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  songRequests SongRequest[]
+  playerStates PlayerState[]
+
+  @@unique([provider, providerTrackId])
+  @@map("tracks")
+}
+
+/// Cached provider search results, keyed by the normalised query.
+model MusicSearchCache {
+  id              String        @id @default(cuid())
+  provider        MusicProvider
+  normalizedQuery String
+  resultJson      Json
+  createdAt       DateTime      @default(now())
+  expiresAt       DateTime
+
+  @@unique([provider, normalizedQuery])
+  @@index([expiresAt])
+  @@map("music_search_cache")
+}
+
+model SongRequest {
+  id                String        @id @default(cuid())
+  venueId           String
+  customerSessionId String?
+  trackId           String
+  requestType       RequestType
+  status            RequestStatus @default(PENDING)
+  amountMinor       Int           @default(0)
+  currency          String        @default("TRY")
+  tableLabel        String?
+  rejectionReason   String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  acceptedAt        DateTime?
+  rejectedAt        DateTime?
+  queuedAt          DateTime?
+  playingAt         DateTime?
+  completedAt       DateTime?
+
+  venue           Venue            @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  customerSession CustomerSession? @relation(fields: [customerSessionId], references: [id], onDelete: SetNull)
+  track           Track            @relation(fields: [trackId], references: [id], onDelete: Restrict)
+  queueItem       QueueItem?
+  payment         Payment?
+
+  @@index([venueId, status, createdAt])
+  @@index([venueId, trackId, status])
+  @@index([venueId, createdAt])
+  @@index([customerSessionId, createdAt])
+  @@map("song_requests")
+}
+
+/// The venue queue. `position` is explicit and unique among the rows that still hold a slot.
+model QueueItem {
+  id            String         @id @default(cuid())
+  venueId       String
+  songRequestId String         @unique
+  position      Int
+  state         QueueItemState @default(QUEUED)
+  createdAt     DateTime       @default(now())
+  startedAt     DateTime?
+  completedAt   DateTime?
+
+  venue       Venue        @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  songRequest SongRequest  @relation(fields: [songRequestId], references: [id], onDelete: Cascade)
+  playerState PlayerState?
+
+  @@index([venueId, state, position])
+  @@map("queue_items")
+}
+
+/// Server-side playback state. The browser is a renderer, never the owner of this record.
+model PlayerState {
+  id          String        @id @default(cuid())
+  venueId     String        @unique
+  queueItemId String?       @unique
+  trackId     String?
+  state       PlaybackState @default(IDLE)
+  version     Int           @default(0)
+  startedAt   DateTime?
+  pausedAt    DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  venue     Venue      @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  queueItem QueueItem? @relation(fields: [queueItemId], references: [id], onDelete: SetNull)
+  track     Track?     @relation(fields: [trackId], references: [id], onDelete: SetNull)
+
+  @@map("player_states")
+}
+
+/// Guarantees that only one browser tab drives playback for a venue at a time.
+model PlayerLease {
+  id              String   @id @default(cuid())
+  venueId         String   @unique
+  sessionId       String
+  lastHeartbeatAt DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@map("player_leases")
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  songRequestId     String        @unique
+  provider          String
+  providerPaymentId String?
+  amountMinor       Int
+  currency          String
+  status            PaymentStatus @default(PENDING)
+  metadata          Json          @default("{}")
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  paidAt            DateTime?
+  refundedAt        DateTime?
+
+  songRequest SongRequest @relation(fields: [songRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerPaymentId])
+  @@index([status, createdAt])
+  @@map("payments")
+}
+
+model BlockedMusicRule {
+  id        String          @id @default(cuid())
+  venueId   String
+  type      BlockedRuleType
+  value     String
+  createdAt DateTime        @default(now())
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, type, value])
+  @@index([venueId])
+  @@map("blocked_music_rules")
+}

@@ -1,36 +1,76 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ---------------------------------------------------------------------------
+# Bağımlılıklar
+# ---------------------------------------------------------------------------
+# Ön eksiz kalıp her seviyede eşleşir: pnpm workspace'te her paketin kendi
+# node_modules'ü vardır.
+node_modules/
+.pnp
+.pnp.*
+.yarn/
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
+# ---------------------------------------------------------------------------
+# Build çıktıları
+# ---------------------------------------------------------------------------
+dist/
+build/
+out/
+.next/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
 
-# testing
-/coverage
+# Prisma'nın ürettiği client
+packages/database/generated/
 
-# next.js
-/.next/
-/out/
+# ---------------------------------------------------------------------------
+# Test çıktıları
+# ---------------------------------------------------------------------------
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+playwright/.cache/
 
-# production
-/build
-
-# misc
-.DS_Store
+# ---------------------------------------------------------------------------
+# Ortam değişkenleri ve secret'lar
+# ---------------------------------------------------------------------------
+# .env.example dışında hiçbir env dosyası depoya girmez.
+.env
+.env.*
+!.env.example
 *.pem
+*.key
+*.p12
+*.pfx
 
-# debug
+# ---------------------------------------------------------------------------
+# Log ve geçici dosyalar
+# ---------------------------------------------------------------------------
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.cache/
+tmp/
+*.tmp
 
-# local env files
-.env*.local
-.env
+# ---------------------------------------------------------------------------
+# Editör ve işletim sistemi
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+*.swp
+*.swo
 
-# vercel
+# ---------------------------------------------------------------------------
+# Yerel araç durumu
+# ---------------------------------------------------------------------------
 .vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+.claude/

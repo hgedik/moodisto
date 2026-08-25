@@ -1,0 +1,8 @@
+{
+  "databaseUrl": "postgresql://moodisto:moodisto@localhost:5433/moodisto_e2e?schema=public",
+  "webPort": 3010,
+  "apiPort": 3011,
+  "venueSlug": "cafe-moda",
+  "ownerEmail": "e2e-owner@example.com",
+  "ownerPassword": "moodisto-e2e-2026"
+}

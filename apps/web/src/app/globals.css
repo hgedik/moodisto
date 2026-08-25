@@ -1,0 +1,54 @@
+@import 'tailwindcss';
+
+/*
+ * Moodisto is used in dimly lit rooms, on phones, by people who are not looking for long. The
+ * palette is dark by design and the type scale stays large enough to read at arm's length.
+ */
+@theme {
+  --color-ink-950: #08070d;
+  --color-ink-900: #0f0e17;
+  --color-ink-850: #15131f;
+  --color-ink-800: #1c1a29;
+  --color-ink-700: #272338;
+  --color-ink-600: #3a3450;
+  --color-muted: #a29fb8;
+  --color-brand-300: #d7bcff;
+  --color-brand-400: #b98cff;
+  --color-brand-500: #9b5cff;
+  --color-brand-600: #7c3aed;
+  --color-accent-400: #ffc857;
+  --color-accent-500: #f5a524;
+  --color-danger-400: #ff6b6b;
+  --color-danger-500: #e5484d;
+  --color-success-400: #4ade80;
+  --color-success-500: #22c55e;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-ink-950 text-white antialiased;
+    background-image:
+      radial-gradient(60rem 40rem at 15% -10%, rgba(155, 92, 255, 0.22), transparent 60%),
+      radial-gradient(50rem 35rem at 110% 10%, rgba(245, 165, 36, 0.14), transparent 55%);
+    background-attachment: fixed;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-400;
+  }
+}
+
+@layer utilities {
+  .surface {
+    @apply rounded-2xl border border-white/8 bg-ink-900/70 backdrop-blur-sm;
+  }
+
+  /* Long single-line values (tokens, urls) must wrap instead of widening the page on a phone. */
+  .break-anywhere {
+    overflow-wrap: anywhere;
+  }
+}

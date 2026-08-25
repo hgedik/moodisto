@@ -1,0 +1,21 @@
+{
+  "name": "@moodisto/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Playwright end-to-end suite: the guest, the venue console and the player against a running stack.",
+  "scripts": {
+    "e2e": "pnpm -C ../.. run build:packages && node ./scripts/reset-e2e-database.mjs && playwright test",
+    "e2e:ui": "pnpm -C ../.. run build:packages && node ./scripts/reset-e2e-database.mjs && playwright test --ui",
+    "e2e:install": "playwright install --with-deps chromium",
+    "report": "playwright show-report",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"@moodisto/e2e runs with pnpm test:e2e (needs Postgres and a browser)\"",
+    "test:unit": "echo \"@moodisto/e2e has no unit tests\""
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.15.3",
+    "typescript": "^5.8.3"
+  }
+}

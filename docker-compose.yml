@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: moodisto-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: moodisto
+      POSTGRES_PASSWORD: moodisto
+      POSTGRES_DB: moodisto
+    ports:
+      - '${POSTGRES_PORT:-5433}:5432'
+    volumes:
+      - moodisto-postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U moodisto -d moodisto']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  moodisto-postgres-data:

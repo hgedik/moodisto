@@ -1,0 +1,20 @@
+{
+  "name": "@moodisto/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --max-warnings 0",
+    "test": "echo \"@moodisto/shared-types has no runtime behaviour to test\"",
+    "test:unit": "echo \"@moodisto/shared-types has no runtime behaviour to test\""
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

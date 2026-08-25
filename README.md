@@ -1,0 +1,450 @@
+# Moodisto
+
+Mekân müziğini misafirin eline veren interaktif istek sistemi. Misafir masadaki QR kodu okutur,
+mekânın sayfasına düşer, şarkı arar, istek tipini seçer ve gönderir. Mekân yönetimi isteği onaylar
+ya da reddeder; onaylanan istek sıraya girer ve mekândaki **Player** sekmesi sırayı çalar. Şarkı
+bitince bir sonraki otomatik başlar.
+
+Her şey responsive web üzerinde çalışır: **PWA, Electron veya native uygulama yoktur.** Misafir,
+mekân yönetimi ve player aynı Next.js uygulamasının farklı route group'larıdır.
+
+Sıranın ve player durumunun tek doğruluk kaynağı (**source of truth**) PostgreSQL'dir. Tarayıcı
+belleği veya bir sağlayıcı playlist'i asla sıranın sahibi değildir; tarayıcı yalnızca veritabanının
+söylediğini gösterir.
+
+---
+
+## İçindekiler
+
+- [Mimari](#mimari)
+- [Depo yapısı](#depo-yapısı)
+- [Gereksinimler](#gereksinimler)
+- [Kurulum](#kurulum)
+- [Ortam değişkenleri](#ortam-değişkenleri)
+- [Migration ve seed](#migration-ve-seed)
+- [Geliştirme](#geliştirme)
+- [Testler](#testler)
+- [Production build](#production-build)
+- [Domain akışı](#domain-akışı)
+- [API yüzeyi](#api-yüzeyi)
+- [Realtime olayları](#realtime-olayları)
+- [Müzik sağlayıcı yapılandırması](#müzik-sağlayıcı-yapılandırması)
+- [Ödeme yapılandırması](#ödeme-yapılandırması)
+- [Güvenlik](#güvenlik)
+- [Bilinen sağlayıcı kısıtları](#bilinen-sağlayıcı-kısıtları)
+
+---
+
+## Mimari
+
+Katmanlar Clean Architecture'ın Dependency Rule'una uyar: kaynak kod bağımlılıkları yalnızca içeri
+doğrudur.
+
+```
+                    ┌─────────────────────────────────────────────┐
+                    │  Frameworks & Drivers                       │
+                    │  Next.js UI · Prisma · Socket.IO · YouTube   │
+                    │  · iyzico · Express                         │
+                    └───────────────────┬─────────────────────────┘
+                                        │ implements
+                    ┌───────────────────▼─────────────────────────┐
+                    │  Interface Adapters                          │
+                    │  Nest controller · repository · gateway      │
+                    │  · DTO mapper                                │
+                    └───────────────────┬─────────────────────────┘
+                                        │ depends on ports
+                    ┌───────────────────▼─────────────────────────┐
+                    │  Use Cases (apps/api/src/*/**.usecase.ts)    │
+                    │  ports: repositories · services · database   │
+                    └───────────────────┬─────────────────────────┘
+                                        │
+                    ┌───────────────────▼─────────────────────────┐
+                    │  Domain (@moodisto/queue-engine)             │
+                    │  sıra yerleşimi · state machine · filtre     │
+                    │  · fiyat · duplicate politikası              │
+                    └─────────────────────────────────────────────┘
+```
+
+- **Domain** (`packages/queue-engine`) hiçbir framework, I/O veya SDK import etmez. Nasıl
+  saklandığını ve nasıl sunulduğunu bilmez.
+- **Use case**'ler yalnızca port arayüzlerine bağlıdır (`apps/api/src/application/ports`). Prisma
+  tipi, Express request'i veya Socket.IO nesnesi use case'e geçmez.
+- **Detaylar eklentidir**: veritabanı, müzik sağlayıcı, ödeme sağlayıcı ve realtime taşıyıcı
+  `apps/api/src/infrastructure` altındaki adapter'lardır ve DI ile enjekte edilir.
+- **Unit of Work**: `Database.transaction(uow => …)` içinde tüm repository'ler tek bir
+  transactional bağlantıyı paylaşır. Realtime mesajları `uow.publish(...)` ile tamponlanır ve
+  **yalnızca transaction commit olduktan sonra** yayınlanır; rollback olan bir değişikliğin olayı
+  istemciye asla ulaşmaz.
+- **Row locking**: sırayı değiştiren her transaction ilk iş olarak `venues.lockForUpdate(venueId)`
+  (`SELECT … FOR UPDATE`) çağırır; sıradaki bir sonraki parça `FOR UPDATE SKIP LOCKED` ile alınır.
+  Race condition üretebilecek read-modify-write adımları transaction dışına çıkarılmaz.
+
+### Provider-agnostik müzik katmanı
+
+Domain'de `youtubeVideoId` gibi bir alan yoktur. Parça kimliği her yerde `provider` +
+`providerTrackId` ikilisidir (`Track` modeli dahil). YouTube'a özgü her şey
+`packages/music-provider/src/youtube` içinde kalır:
+
+```
+MusicProvider (port)
+  ├── YoutubeMusicProvider      → YouTube Data API v3 (yalnızca sunucu tarafı)
+  ├── FakeMusicProvider         → çevrimdışı geliştirme ve testler
+  └── CachedMusicProvider       → decorator: 24 saatlik PostgreSQL arama cache'i
+MusicProviderRegistry           → yapılandırmaya göre sağlayıcı seçer
+ProviderPlayerRegistry (web)    → provider kimliğine göre player bileşenini seçer
+```
+
+Lisanslı bir sağlayıcıya geçmek tek modül değişikliğidir: yeni bir `MusicProvider` adapter'ı ve
+karşılığında bir player bileşeni yazılır; use case'ler, veritabanı şeması ve UI değişmez.
+
+---
+
+## Depo yapısı
+
+pnpm workspace monorepo:
+
+| Paket                     | Açıklama                                                                    |
+| ------------------------- | --------------------------------------------------------------------------- |
+| `apps/api`                | NestJS backend: istek yaşam döngüsü, sıra orkestrasyonu, realtime, ödemeler |
+| `apps/web`                | Next.js 15 App Router istemci: misafir sayfası, mekân konsolu, player       |
+| `apps/e2e`                | Playwright uçtan uca test paketi                                            |
+| `packages/queue-engine`   | Framework'süz domain kuralları                                              |
+| `packages/music-provider` | Müzik arama/çalma portu ve YouTube adapter'ı                                |
+| `packages/database`       | Prisma şeması, client factory, migration'lar ve seed                        |
+| `packages/shared-types`   | API ve istemcinin paylaştığı DTO'lar, enum'lar, realtime sözleşmesi         |
+| `packages/validation`     | API ve istemcinin paylaştığı Zod şemaları                                   |
+
+`apps/web` tek bir Next.js uygulamasıdır ve route group'lara ayrılır:
+
+```
+src/app/(customer)/…      misafir: /, /join/[qrToken], /v/[slug], /v/[slug]/search,
+                          /v/[slug]/request/[id], /v/[slug]/top, /checkout/mock
+src/app/(venue)/venue/…   mekân: /venue/login ve (console) altında dashboard, requests,
+                          queue, player, qr, filters, settings, stats
+```
+
+---
+
+## Gereksinimler
+
+- **Node.js ≥ 20.11** (geliştirme Node 24 ile yapılmıştır)
+- **pnpm 10.15.0** (`corepack enable` yeterlidir)
+- **Docker** (PostgreSQL 16 için) veya yerel bir PostgreSQL 16 kurulumu
+
+---
+
+## Kurulum
+
+```bash
+corepack enable
+pnpm install
+
+cp .env.example .env          # ardından secret'ları kendi değerlerinizle değiştirin
+docker compose up -d postgres # PostgreSQL 16, varsayılan port 5433
+
+pnpm db:generate              # Prisma client
+pnpm db:migrate:deploy        # şemayı kur
+pnpm db:seed                  # örnek mekânlar, fiyatlar, QR kodlar ve hesaplar
+pnpm dev                      # API :3001, web :3000
+```
+
+`docker compose` ayağa kalkarken `docker/postgres/init/10-create-test-database.sql` betiği
+`moodisto_test` ve `moodisto_e2e` veritabanlarını da oluşturur; entegrasyon ve E2E paketleri
+geliştirme verisine hiç dokunmaz.
+
+### Seed ile gelen veri
+
+- Mekânlar: **Cafe Moda** (`cafe-moda`) ve **Bar Bebek** (`bar-bebek`)
+- Cafe Moda fiyatlandırması: normal **0**, öncelikli **2000**, DJ **3000**, sıradaki çalsın **5000**
+  (hepsi kuruş cinsinden tam sayı)
+- Masa QR kodları: Masa 1, Masa 2, Bar, Bahçe, VIP
+- Hesaplar: `SEED_OWNER_EMAIL` (OWNER) ve aynı parolayla bir DJ kullanıcısı. Parola
+  `SEED_OWNER_PASSWORD` ile gelir ve argon2id ile hash'lenir.
+
+---
+
+## Ortam değişkenleri
+
+Tam liste ve açıklamaları `.env.example` dosyasındadır. Öne çıkanlar:
+
+| Değişken                                                                          | Anlamı                                  |
+| --------------------------------------------------------------------------------- | --------------------------------------- |
+| `DATABASE_URL`                                                                    | Geliştirme veritabanı                   |
+| `TEST_DATABASE_URL` / `E2E_DATABASE_URL`                                          | Entegrasyon ve Playwright veritabanları |
+| `APP_URL`, `API_URL`, `CORS_ORIGINS`                                              | Origin whitelist ve mutlak URL üretimi  |
+| `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`                                      | Tarayıcıya derlenen tek genel değerler  |
+| `COOKIE_SECRET`, `JWT_SECRET`                                                     | En az 32 karakter; asla depoya girmez   |
+| `JWT_ACCESS_TTL_SECONDS`, `JWT_REFRESH_TTL_SECONDS`                               | Token ömürleri                          |
+| `MUSIC_PROVIDER`, `YOUTUBE_API_KEY`, `MUSIC_PROVIDER_FAKE`                        | Müzik sağlayıcı seçimi                  |
+| `PAYMENT_PROVIDER`, `PAYMENT_API_KEY`, `PAYMENT_SECRET`, `PAYMENT_WEBHOOK_SECRET` | Ödeme sağlayıcı                         |
+| `ENABLE_PAID_REQUESTS`, `ENABLE_YOUTUBE_PLAYBACK`, `RATE_LIMIT_ENABLED`           | Özellik bayrakları                      |
+| `SEED_OWNER_EMAIL`, `SEED_OWNER_PASSWORD`                                         | Yalnızca seed içindir                   |
+
+`YOUTUBE_API_KEY` yalnızca API sürecinde okunur. `NEXT_PUBLIC_` öneki taşımadığı için tarayıcı
+bundle'ına hiçbir koşulda girmez.
+
+---
+
+## Migration ve seed
+
+```bash
+pnpm db:migrate           # geliştirmede yeni migration üretir
+pnpm db:migrate:deploy    # var olan migration'ları uygular (CI ve production)
+pnpm db:seed              # seed'i çalıştırır (idempotent, upsert tabanlıdır)
+pnpm db:studio            # Prisma Studio
+```
+
+Şema 13 tablo içerir: `venues`, `venue_users`, `venue_request_pricing`, `venue_qr_codes`,
+`customer_sessions`, `tracks`, `music_search_cache`, `song_requests`, `queue_items`,
+`player_states`, `player_leases`, `payments`, `blocked_music_rules`.
+
+`queue_items` üzerinde `(venueId, position)` için kısmi unique index vardır: aktif sırada iki
+parçanın aynı pozisyona düşmesi veritabanı düzeyinde imkânsızdır.
+
+---
+
+## Geliştirme
+
+```bash
+pnpm dev        # API ve web birlikte
+pnpm dev:api    # yalnızca API   → http://localhost:3001
+pnpm dev:web    # yalnızca web   → http://localhost:3000
+```
+
+Elde bir YouTube API anahtarı yoksa `.env` içinde `MUSIC_PROVIDER_FAKE=true` yapın: arama, kotasız
+ve deterministik bir çevrimdışı katalogdan cevaplanır.
+
+Player'ı denemek için: mekân hesabıyla `/venue/login` → `/venue/player` → **PLAYER'I BAŞLAT**.
+Player kirasını (lease) alan tek sekme çalar; ikinci bir sekme açıldığında ilkinin kirası düşer ve
+o sekme `lease-revoked` komutunu alır.
+
+---
+
+## Testler
+
+| Komut                   | Kapsam                                                       |
+| ----------------------- | ------------------------------------------------------------ |
+| `pnpm test:unit`        | Domain kuralları, adapter'lar, guard'lar, servisler (Vitest) |
+| `pnpm test:integration` | Gerçek PostgreSQL üzerinde HTTP + transaction davranışı      |
+| `pnpm test:e2e`         | Playwright: misafir, konsol ve player birlikte               |
+
+Entegrasyon paketi `TEST_DATABASE_URL`'i kullanır, migration'ları uygular ve her dosya arasında
+tabloları truncate eder. Eşzamanlılık testleri 20 isteği aynı anda kabul edip pozisyonların
+benzersiz ve boşluksuz kaldığını doğrular.
+
+E2E paketi kendi veritabanını (`E2E_DATABASE_URL`) sıfırlar ve kendi sunucularını 3010/3011
+portlarında ayağa kaldırır; geliştirme portlarına ve verisine dokunmaz. İlk çalıştırmadan önce:
+
+```bash
+pnpm --filter @moodisto/e2e e2e:install   # Chromium
+pnpm test:e2e
+```
+
+E2E sırasında `NEXT_PUBLIC_PLAYER_STUB=1` ile sağlayıcı embed'i yerine "parça bitti" / "çalma
+hatası" düğmeleri olan bir stand-in kullanılır. Bu bayrak geliştirmede ve production'da asla
+verilmez.
+
+---
+
+## Production build
+
+```bash
+pnpm verify   # format:check + lint + typecheck + test:unit + build
+pnpm build    # paketler → API (dist/main.js) → web (.next)
+```
+
+Çalıştırma:
+
+```bash
+pnpm db:migrate:deploy
+node apps/api/dist/main.js          # API
+pnpm --filter @moodisto/web start   # web
+```
+
+Production'da `NODE_ENV=production` olmalıdır: Content-Security-Policy `unsafe-eval` olmadan
+uygulanır (bu izin yalnızca `next dev`'in fast refresh bundler'ı için verilir) ve çerezler `Secure`
+bayrağıyla yazılır.
+
+---
+
+## Domain akışı
+
+### İstek durum makinesi
+
+```
+PENDING_PAYMENT ─(ödeme onaylandı)──► PENDING
+                ├(ödeme başarısız)──► FAILED
+                ├(süre doldu)───────► EXPIRED
+                └(misafir iptal)────► CANCELLED
+
+PENDING ─(mekân onayladı)─► ACCEPTED ─► QUEUED ─► PLAYING ─► COMPLETED
+        ├(mekân reddetti)─► REJECTED             └────────► FAILED
+        ├(misafir iptal)──► CANCELLED
+        └(süre doldu)─────► EXPIRED
+
+ACCEPTED / QUEUED ─(sıradan çıkarıldı veya iptal)────────► CANCELLED
+QUEUED ─(çalınamadı)─────────────────────────────────────► FAILED
+```
+
+Geçersiz geçişler `@moodisto/queue-engine` içindeki `assertRequestTransition` tarafından
+reddedilir; hiçbir adapter bu kuralı atlayamaz.
+
+### Sıra yerleşimi
+
+İstek tipi sıradaki yeri belirler: **Sıradaki çalsın** çalan parçanın hemen ardına, **DJ** ve
+**Öncelikli** kendi tiyerlerinin sonuna, **Normal** listenin sonuna girer. Yerleştirme sırasında
+arkadaki pozisyonlar kaydırılır; çıkarma ve tamamlama sonrası sıra sıkıştırılarak boşluk bırakılmaz.
+
+### Filtreler ve duplicate politikası
+
+Mekân; sanatçı, kanal ve anahtar kelime bazlı engel kuralları tanımlayabilir. Kural eşleşmesi
+Türkçe'ye duyarlı normalizasyondan geçer. Aynı parça mekânda aktifken (beklemede, onaylı, sırada
+veya çalıyor) tekrar istenemez; yakın zamanda çalınmışsa mekânın `duplicateCooldownMinutes` süresi
+dolana dek reddedilir.
+
+---
+
+## API yüzeyi
+
+Tüm uçlar `API_URL` altında sunulur. Misafir uçları imzalı bir oturum çerezi, mekân uçları JWT
+çerezi ister.
+
+**Misafir**
+
+```
+POST   /join/:qrToken                 QR ile mekâna katıl (masa etiketi koddan gelir)
+GET    /venues/nearby                 konuma göre mekân listesi
+GET    /venues/:slug                  mekân profili ve fiyatlandırma
+GET    /venues/:slug/now-playing      o an çalan
+GET    /venues/:slug/queue            genel sıra görünümü
+GET    /venues/:slug/top              en çok istenen parçalar
+GET    /music/search                  sunucu tarafı arama (min 3 karakter, en fazla 10 sonuç)
+POST   /venues/:slug/requests         istek oluştur
+GET    /requests/:requestId           tek isteğin durumu
+POST   /requests/:requestId/cancel    isteği iptal et
+GET    /venues/:slug/my-requests      bu oturumun istekleri
+```
+
+**Mekân konsolu** (`/venue/*`, JWT gerektirir)
+
+```
+POST   /auth/venue/login · POST /auth/venue/logout · GET /auth/venue/me
+GET    /venue/requests · POST /venue/requests/:id/accept · POST /venue/requests/:id/reject
+GET    /venue/queue · POST /venue/queue/reorder · DELETE /venue/queue/:queueItemId
+GET    /venue/settings · PATCH /venue/settings
+GET    /venue/pricing  · PATCH /venue/pricing
+GET    /venue/filters  · POST /venue/filters · DELETE /venue/filters/:ruleId
+GET    /venue/qr-codes · POST /venue/qr-codes · DELETE /venue/qr-codes/:qrCodeId
+GET    /venue/stats
+```
+
+**Player** (`/venue/player/*`, JWT + kira gerektirir)
+
+```
+GET    /venue/player/state
+POST   /venue/player/start · complete · error · next · pause · resume · heartbeat · release
+```
+
+**Ödemeler**
+
+```
+POST   /payments/webhook       sağlayıcı webhook'u (imza doğrulanır)
+POST   /payments/mock/settle   yalnızca mock sağlayıcı; imzalı gövde ister
+```
+
+---
+
+## Realtime olayları
+
+Socket.IO odaları: `venue:{id}:customers`, `venue:{id}:admin`, `venue:{id}:player`,
+`request:{requestId}`. Bir istemci yalnızca yetkili olduğu odaya abone olabilir; misafir kendi
+isteğini mekân genelinde değil, kendi `request:{id}` odasından takip eder.
+
+| Olay                  | Yön                                                               |
+| --------------------- | ----------------------------------------------------------------- |
+| `request.created`     | mekân konsoluna yeni istek                                        |
+| `request.updated`     | isteğin durumu değişti (onay, ret, sıra, çalıyor, çalındı, iptal) |
+| `queue.updated`       | sıra değişti                                                      |
+| `player.updated`      | player durumu değişti                                             |
+| `player.nowPlaying`   | çalan parça değişti                                               |
+| `player.command`      | player'a komut (play, pause, resume, skip, reload, lease-revoked) |
+| `venue.stats.updated` | en çok istenenler değişti                                         |
+
+---
+
+## Müzik sağlayıcı yapılandırması
+
+```bash
+MUSIC_PROVIDER="YOUTUBE"
+YOUTUBE_API_KEY="…"          # yalnızca sunucuda okunur
+YOUTUBE_REGION_CODE="TR"
+YOUTUBE_RELEVANCE_LANGUAGE="tr"
+MUSIC_PROVIDER_FAKE=false
+```
+
+Arama kotası bilinçli olarak korunur:
+
+- en az **3 karakter** sorgu; altındaki hiçbir istek sağlayıcıya gitmez,
+- istemcide **700 ms** debounce,
+- en fazla **10 sonuç**,
+- sonuçlar `music_search_cache` tablosunda **24 saat** saklanır ve aynı sorgu tekrar sağlayıcıya
+  sorulmaz.
+
+Arama daima backend üzerinden yapılır; tarayıcı sağlayıcıyla doğrudan konuşmaz.
+
+---
+
+## Ödeme yapılandırması
+
+`PaymentProvider` portu sağlayıcıdan bağımsızdır; iki adapter gelir:
+
+- **`mock`** — geliştirme ve testler için. `/checkout/mock` sayfası ödemeyi onaylatır, backend
+  imzalı bir webhook gövdesiyle sonucu işler.
+- **`iyzico`** — `PAYMENT_API_KEY`, `PAYMENT_SECRET`, `PAYMENT_BASE_URL` ve `PAYMENT_WEBHOOK_SECRET`
+  ister.
+
+Tutarlar **kuruş cinsinden tam sayıdır** (2000, 3000, 5000). Para hiçbir yerde float olarak
+saklanmaz veya taşınmaz.
+
+Ödemenin sonucu **frontend'e güvenilerek** belirlenmez: istek yalnızca sağlayıcı webhook'u imza
+doğrulamasından geçtikten sonra `PENDING_PAYMENT` durumundan çıkar. Ödemesi 30 dakika içinde tamamlanmayan
+istekler, aynı mekâna gelen bir sonraki istek transaction'ında `EXPIRED` durumuna alınır; ayrı bir
+zamanlayıcıya ihtiyaç yoktur.
+
+---
+
+## Güvenlik
+
+- **JWT localStorage'da tutulmaz.** Access ve refresh token'ları `HttpOnly`, `Secure` (production),
+  `SameSite=Lax` çerezlerdedir. Misafir oturumu da aynı şekilde imzalı bir çerezdir.
+- **Parolalar argon2id** ile hash'lenir.
+- **CSRF**: durum değiştiren tüm isteklerde double-submit token doğrulaması (`CsrfGuard`).
+- **CORS**: `CORS_ORIGINS` whitelist'i; credential'lı istekler yalnızca listedeki origin'lerden.
+- **Rate limiting**: istek oluşturma 5/10 dk (oturum) ve 20/saat (IP), arama 30/dk (IP), QR
+  katılımı 20/5 dk (IP), giriş 10/5 dk (IP), webhook 120/dk (IP).
+- **Girdi doğrulama**: her uçta paylaşılan Zod şemaları (`@moodisto/validation`) ve
+  `ZodValidationPipe`.
+- **SQL injection**: tüm erişim Prisma üzerinden parametreli sorgularla yapılır.
+- **XSS**: React kaçışı; `dangerouslySetInnerHTML` kullanılmaz. Content-Security-Policy,
+  `X-Content-Type-Options`, `Referrer-Policy` ve `Permissions-Policy` başlıklarını sayfaları sunan
+  Next.js verir; yalnızca JSON döndüren API'de helmet `nosniff`, `Referrer-Policy` ve
+  `Cross-Origin-Resource-Policy` uygular.
+- **API anahtarı** yalnızca sunucudadır; tarayıcı bundle'ında yer almaz.
+- **QR brute force**: token uçları rate limit'lidir ve kod pasifleştirilebilir/süreli olabilir.
+- **Secret'lar depoya girmez**; `.env` git dışıdır, `.env.example` yalnızca yer tutucu içerir.
+
+---
+
+## Bilinen sağlayıcı kısıtları
+
+YouTube'un standart şartları, içeriğin kişisel olmayan/ticari kullanımını kısıtlar; videoların
+umuma açık gösterimini ve müzik yayınını yasaklar. Bu nedenle:
+
+- Bu depodaki **YouTube sağlayıcısı geliştirme ve demo içindir.** Production'da lisanslı bir
+  sağlayıcıya geçmek mimari gereği tek modül değişikliğidir.
+- Player embed'i **görünürdür**; gizli iframe, `display:none` veya yalnızca arka planda çalma
+  yoktur. Reklamlar ve oynatıcı davranışı engellenmez.
+- `yt-dlp`, YouTube URL → MP3 dönüşümü ve ses akışı çıkarma **kesinlikle yoktur** ve eklenmemelidir.
+
+Mekân müziğini umuma açık çalmak, bulunduğunuz ülkedeki meslek birliklerine karşı ayrıca telif
+yükümlülüğü doğurur; bu yükümlülük mekâna aittir.

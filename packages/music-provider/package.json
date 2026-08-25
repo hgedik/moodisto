@@ -1,0 +1,26 @@
+{
+  "name": "@moodisto/music-provider",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Provider-agnostic music search and playback port, with a YouTube development adapter.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test --max-warnings 0",
+    "test": "vitest run",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@moodisto/queue-engine": "workspace:*",
+    "@moodisto/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.2"
+  }
+}
