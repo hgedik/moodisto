@@ -1,18 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { assertRequestTransition } from '@moodisto/queue-engine';
-import {
-  PlaybackState,
-  PlayerCommand,
-  RequestStatus,
-  type SongRequestDto,
-} from '@moodisto/shared-types';
+import { RequestStatus, type SongRequestDto } from '@moodisto/shared-types';
 import { CLOCK, DATABASE, type Clock, type Database } from '../application/ports';
 import { toSongRequestDto } from '../application/dto-mappers';
-import {
-  publishPlayerCommand,
-  publishRequestUpdated,
-} from '../application/services/realtime-messages';
+import { publishRequestUpdated } from '../application/services/realtime-messages';
 import { ForbiddenError, NotFoundError } from '../common/errors';
+import { PlayerService } from '../player/player.service';
 import { QueueService } from '../queue/queue.service';
 
 @Injectable()
@@ -21,6 +14,7 @@ export class ModerateSongRequestUseCase {
     @Inject(DATABASE) private readonly database: Database,
     @Inject(CLOCK) private readonly clock: Clock,
     private readonly queue: QueueService,
+    private readonly player: PlayerService,
   ) {}
 
   /**
@@ -48,14 +42,11 @@ export class ModerateSongRequestUseCase {
 
       const dto = toSongRequestDto(queued);
       publishRequestUpdated(uow, dto);
-      await this.queue.broadcastVenueState(uow, venueId);
 
-      // An idle player has nothing to react to on its own; nudge it to pull the new item.
-      const playerState = await uow.player.getState(venueId);
-      const current = await uow.queue.findCurrent(venueId);
-      if (!current && (playerState === null || playerState.state === PlaybackState.IDLE)) {
-        publishPlayerCommand(uow, venueId, PlayerCommand.Play, now);
-      }
+      // A player tab waiting on an empty queue has nothing to react to on its own, so the server
+      // puts the song it just accepted on the speakers before telling everyone where things stand.
+      await this.player.startNextIfIdle(uow, venueId, now);
+      await this.queue.broadcastVenueState(uow, venueId);
 
       return dto;
     });

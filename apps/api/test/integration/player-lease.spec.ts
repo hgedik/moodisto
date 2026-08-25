@@ -113,6 +113,30 @@ describe('player lease and playback', () => {
     ).toBe('FAILED');
   });
 
+  it('starts a song approved while the player was waiting with an empty queue', async () => {
+    const sessionId = 'player-tab-waiting';
+    const idle = await admin
+      .post('/api/venue/player/start', { sessionId, takeover: true })
+      .expect(201);
+    expect(idle.body.state).toBe('IDLE');
+
+    // The venue approves a request with the player tab already open and holding the lease.
+    await queueSongs(1);
+
+    const state = await admin.get(`/api/venue/player/state?sessionId=${sessionId}`).expect(200);
+    expect(state.body.state).toBe('PLAYING');
+    expect(state.body.current?.track.id).toBe(queuedTrackIds[0]);
+  });
+
+  it('leaves a newly approved song waiting when no player tab is listening', async () => {
+    await queueSongs(1);
+
+    const state = await admin.get('/api/venue/player/state').expect(200);
+    expect(state.body.state).toBe('IDLE');
+    expect(state.body.current).toBeNull();
+    expect(state.body.upcoming).toHaveLength(1);
+  });
+
   it('stops burning the queue once too many tracks fail in a row', async () => {
     // A catalogue the venue cannot embed used to drain the whole evening in one second: every
     // error advanced, the next track errored too, and the guests' requests were gone.

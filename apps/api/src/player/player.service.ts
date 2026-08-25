@@ -182,6 +182,32 @@ export class PlayerService {
     });
   }
 
+  /**
+   * Starts the next waiting item when a player tab is listening but nothing is playing.
+   *
+   * Approving a request should put it on the speakers without anyone pressing anything. The lease
+   * is what makes that safe: with no tab holding it there is no renderer, and marking a song as
+   * playing would silently lose it. A paused or halted player is a decision the venue made, so it
+   * is left alone too.
+   *
+   * Runs inside the caller's transaction, which must already hold the venue lock.
+   */
+  async startNextIfIdle(uow: UnitOfWork, venueId: string, now: Date): Promise<void> {
+    const state = await uow.player.getState(venueId);
+    if (state !== null && state.state !== PlaybackState.IDLE) {
+      return;
+    }
+    if (await uow.queue.findCurrent(venueId)) {
+      return;
+    }
+
+    const lease = await uow.player.getLease(venueId);
+    if (!lease || !isLeaseFresh(lease, now)) {
+      return;
+    }
+    await this.queue.advance(uow, venueId, now);
+  }
+
   async heartbeat(venueId: string, sessionId: string): Promise<PlayerLeaseDto> {
     const now = this.clock.now();
 
