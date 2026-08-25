@@ -9,15 +9,18 @@ test('the console is closed to anyone without a session', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Giriş yap' })).toBeVisible();
 });
 
-test('search spends no quota below the minimum query length', async ({ browser }) => {
+test('typing searches the local catalogue and never the paid provider', async ({ browser }) => {
   const guest = await openGuest(browser, `/v/${venueSlug}/search`);
 
-  const searches: string[] = [];
+  const catalogue: string[] = [];
+  const provider: string[] = [];
   const external: string[] = [];
   guest.page.on('request', (request) => {
     const url = request.url();
-    if (url.includes('/music/search')) {
-      searches.push(url);
+    if (url.includes('/music/provider-search')) {
+      provider.push(url);
+    } else if (url.includes('/music/search')) {
+      catalogue.push(url);
     }
     if (!url.includes('localhost') && !url.startsWith('data:') && !url.startsWith('blob:')) {
       external.push(url);
@@ -26,11 +29,17 @@ test('search spends no quota below the minimum query length', async ({ browser }
 
   await guest.page.getByLabel('Şarkı veya sanatçı ara').fill('du');
   await expect(guest.page.getByText('Aramak için biraz daha yaz…')).toBeVisible();
-  expect(searches).toHaveLength(0);
+  expect(catalogue).toHaveLength(0);
 
   await guest.page.getByLabel('Şarkı veya sanatçı ara').fill('dudu');
   await expect(guest.page.getByText('Dudu', { exact: true })).toBeVisible();
-  expect(searches).toHaveLength(1);
+  expect(catalogue).toHaveLength(1);
+  // Typing is free, however much of it there is: the allowance is only ever spent from a tap.
+  expect(provider).toEqual([]);
+
+  await guest.page.getByRole('button', { name: 'Müzik servisinde ara' }).click();
+  await expect(guest.page.getByRole('button', { name: 'Müzik servisinde ara' })).toBeHidden();
+  expect(provider).toHaveLength(1);
 
   // The provider key lives on the server: the browser only ever talks to our own API.
   expect(external).toEqual([]);

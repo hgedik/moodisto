@@ -194,9 +194,9 @@ pnpm db:seed              # seed'i çalıştırır (idempotent, upsert tabanlıd
 pnpm db:studio            # Prisma Studio
 ```
 
-Şema 13 tablo içerir: `venues`, `venue_users`, `venue_request_pricing`, `venue_qr_codes`,
-`customer_sessions`, `tracks`, `music_search_cache`, `song_requests`, `queue_items`,
-`player_states`, `player_leases`, `payments`, `blocked_music_rules`.
+Şema 14 tablo içerir: `venues`, `venue_users`, `venue_request_pricing`, `venue_qr_codes`,
+`customer_sessions`, `tracks`, `music_search_cache`, `provider_quota_usage`, `song_requests`,
+`queue_items`, `player_states`, `player_leases`, `payments`, `blocked_music_rules`.
 
 `queue_items` üzerinde `(venueId, position)` için kısmi unique index vardır: aktif sırada iki
 parçanın aynı pozisyona düşmesi veritabanı düzeyinde imkânsızdır.
@@ -318,7 +318,8 @@ GET    /venues/:slug                  mekân profili ve fiyatlandırma
 GET    /venues/:slug/now-playing      o an çalan
 GET    /venues/:slug/queue            genel sıra görünümü
 GET    /venues/:slug/top              en çok istenen parçalar
-GET    /music/search                  sunucu tarafı arama (min 3 karakter, en fazla 10 sonuç)
+GET    /music/search                  yerel katalog araması (ücretsiz, her tuş vuruşunda)
+GET    /music/provider-search         sağlayıcı araması (kota harcar, yalnızca açık istekle)
 POST   /venues/:slug/requests         istek oluştur
 GET    /requests/:requestId           tek isteğin durumu
 POST   /requests/:requestId/cancel    isteği iptal et
@@ -382,13 +383,33 @@ YOUTUBE_RELEVANCE_LANGUAGE="tr"
 MUSIC_PROVIDER_FAKE=false
 ```
 
-Arama kotası bilinçli olarak korunur:
+Arama kotası bilinçli olarak korunur. Sağlayıcının günlük hakkı satın alınabilir bir şey
+olmadığı için akış **yerel katalog önce** kurulmuştur:
 
-- en az **3 karakter** sorgu; altındaki hiçbir istek sağlayıcıya gitmez,
-- istemcide **700 ms** debounce,
-- en fazla **10 sonuç**,
-- sonuçlar `music_search_cache` tablosunda **24 saat** saklanır ve aynı sorgu tekrar sağlayıcıya
-  sorulmaz.
+- **yazmak ücretsizdir**: her tuş vuruşu yalnızca `tracks` tablosunu arar (`/music/search`).
+  Sağlayıcıdan dönen her sonuç bu tabloya yazıldığı için katalog her aramayla büyür ve bir kez
+  sorulan parça ikinci kez sorulmaz,
+- **sağlayıcı yalnızca açık dokunuşla** sorulur (`/music/provider-search`); konuk aradığını
+  katalogda bulamadığına kendisi karar verir,
+- en az **3 karakter** sorgu — her iki uç için de,
+- istemcide **700 ms** debounce ve en fazla **10 sonuç**,
+- sonuçlar `music_search_cache` tablosunda **24 saat** saklanır; önbellekten yanıtlanan arama hiç
+  kota harcamaz.
+
+Harcama `provider_quota_usage` tablosunda tutulur; PostgreSQL burada da tek doğruluk kaynağıdır.
+API yeniden başladığında günün harcaması unutulmaz, iki API örneği de aynı kotayı ayrı ayrı
+sahiplenmez. Kontrol ve harcama tek SQL ifadesindedir: aynı anda gelen iki arama son birimi iki kez
+harcayamaz.
+
+Günlük hakkın **500 birimi** aramadan esirgenir. Bu rezerv, şarkısını çoktan seçmiş bir konuğun
+isteğini gönderebilmesi içindir (ilk kez istenen bir parçanın sağlayıcıdan sorulması); akşamın
+aramaları hakkı bitirse bile istek gönderilmeye devam eder. Arama kapısı kapandığında yerel katalog
+yanıt vermeyi sürdürür ve arama ekranı kapının ne zaman yeniden açılacağını söyler.
+
+Katalog kendi kendini de temizler: hoparlörlere ulaşıp çalan parça "kanıtlanmış" olarak işaretlenir,
+sağlayıcının kendi reddettiği parça (`EMBED_NOT_ALLOWED`, `VIDEO_UNAVAILABLE`) katalogdan düşer.
+Mekâna özgü bir arıza (kopan bağlantı gibi) kataloğu asla küçültmez — bir kafenin internetinin
+bozuk olması diğerlerinin kataloğunu daraltmamalıdır.
 
 Arama daima backend üzerinden yapılır; tarayıcı sağlayıcıyla doğrudan konuşmaz.
 

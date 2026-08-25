@@ -31,15 +31,20 @@ export const owner = {
 };
 
 /**
- * Titles from the offline catalogue in `apps/api/src/music/fake-music-provider.ts`.
+ * What each scenario asks for, and how far it has to reach to find it.
  *
- * The database is prepared once per run, so a request one spec leaves behind is still active when
- * the next one starts and the venue would refuse the same track as a duplicate. Each scenario
- * therefore asks for a track of its own.
+ * Every scenario owns a track of its own, because the database is prepared once per run: a request
+ * one spec leaves behind still occupies its track when the next spec starts, and the venue refuses
+ * the same track twice.
+ *
+ * `free` is a seeded track, so typing finds it in the local catalogue — the seed leaves it played
+ * out rather than waiting, which is what makes it free to ask for again. `paid` and `qr` exist only
+ * in `apps/api/src/music/fake-music-provider.ts`, so those two also walk the guest through the
+ * explicit provider search — the path that costs quota.
  */
 export const catalogue = {
-  free: { query: 'Dudu', title: 'Dudu' },
-  paid: { query: 'Cambaz', title: 'Cambaz' },
+  free: { query: 'Senfoni', title: 'Yalnızlık Senfonisi' },
+  paid: { query: 'Bir Derdim', title: 'Bir Derdim Var' },
   qr: { query: 'Papara', title: 'Papara' },
 } as const;
 

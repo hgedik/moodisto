@@ -38,9 +38,16 @@ export const requestSong = async (
   await page.goto(`/v/${venueSlug}/search`);
   await page.getByLabel('Şarkı veya sanatçı ara').fill(options.query);
 
-  const result = page.getByRole('button', { name: new RegExp(options.title) });
-  await expect(result.first()).toBeVisible();
-  await result.first().click();
+  // Local-first: typing searches the catalogue, and only a guest who does not find their song
+  // there asks the provider. Both paths end on the same result button.
+  const result = page.getByRole('button', { name: new RegExp(options.title) }).first();
+  const askProvider = page.getByRole('button', { name: 'Müzik servisinde ara' });
+  await expect(result.or(askProvider).first()).toBeVisible();
+  if (!(await result.isVisible())) {
+    await askProvider.click();
+  }
+  await expect(result).toBeVisible();
+  await result.click();
 
   const sheet = page.getByRole('dialog', { name: 'İstek türünü seç' });
   await expect(sheet).toBeVisible();
