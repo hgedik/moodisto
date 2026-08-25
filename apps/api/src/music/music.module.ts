@@ -7,7 +7,8 @@ import {
   MUSIC_PROVIDER_REGISTRY,
   MusicProviderFactory,
 } from './music-provider.factory';
-import { SearchMusicUseCase } from './search-music.usecase';
+import { SearchCatalogueUseCase } from './search-catalogue.usecase';
+import { SearchProviderUseCase } from './search-provider.usecase';
 
 @Global()
 @Module({
@@ -26,7 +27,8 @@ import { SearchMusicUseCase } from './search-music.usecase';
         factory.createRegistry(),
       inject: [MusicProviderFactory],
     },
-    SearchMusicUseCase,
+    SearchCatalogueUseCase,
+    SearchProviderUseCase,
   ],
   exports: [MUSIC_PROVIDER, MUSIC_PROVIDER_REGISTRY, MusicProviderFactory],
 })

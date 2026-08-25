@@ -1,3 +1,4 @@
+import { Prisma, type Track } from '@moodisto/database';
 import { buildTrackSearchText } from '@moodisto/queue-engine';
 import type { MusicProviderId } from '@moodisto/shared-types';
 import type { TrackRecord, TrackRepository, TrackUpsertInput } from '../../application/ports';
@@ -39,6 +40,36 @@ export class PrismaTrackRepository implements TrackRepository {
         }),
       );
     }
+    return rows.map(toTrackRecord);
+  }
+
+  /**
+   * Substring matching on the folded search text, which the trigram index accelerates.
+   *
+   * Ranking is relevance first (how much of the row the query accounts for), then tracks that are
+   * known to have played through, then the most recently proven ones. The last key only exists so
+   * that two equally good matches always come back in the same order.
+   */
+  async searchCatalogue(input: {
+    tokens: readonly string[];
+    limit: number;
+  }): Promise<readonly TrackRecord[]> {
+    if (input.tokens.length === 0) {
+      return [];
+    }
+    const conditions = Prisma.join(
+      input.tokens.map((token) => Prisma.sql`"searchText" LIKE ${`%${token}%`}`),
+      ' AND ',
+    );
+    const rows = await this.tx.$queryRaw<Track[]>`
+      SELECT * FROM tracks
+      WHERE "playbackBlockedAt" IS NULL AND (${conditions})
+      ORDER BY similarity("searchText", ${input.tokens.join(' ')}) DESC,
+               ("lastPlayedOkAt" IS NOT NULL) DESC,
+               "lastPlayedOkAt" DESC NULLS LAST,
+               title ASC
+      LIMIT ${input.limit}
+    `;
     return rows.map(toTrackRecord);
   }
 

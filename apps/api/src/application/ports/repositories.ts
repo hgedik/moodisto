@@ -84,6 +84,16 @@ export interface CustomerSessionRepository {
 
 export interface TrackRepository {
   upsertMany(tracks: readonly TrackUpsertInput[]): Promise<readonly TrackRecord[]>;
+  /**
+   * Searches the tracks Moodisto already knows about.
+   *
+   * A row matches when it contains every token, so word order and unfinished words behave the way
+   * a guest expects. Tracks the provider refused to play are never returned.
+   */
+  searchCatalogue(input: {
+    tokens: readonly string[];
+    limit: number;
+  }): Promise<readonly TrackRecord[]>;
   findByProviderTrackId(
     provider: MusicProviderId,
     providerTrackId: string,

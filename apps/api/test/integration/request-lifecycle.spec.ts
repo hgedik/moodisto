@@ -41,7 +41,14 @@ describe('song request lifecycle', () => {
     expect(joined.body.venue.slug).toBe(venue.slug);
     expect(joined.body.tableLabel).toBe(venue.tableLabel);
 
-    const search = await guest.get(`/api/music/search?q=dudu&limit=5`).expect(200);
+    // Nothing has been searched yet, so the local catalogue has nothing to offer and the guest
+    // spends a provider search — exactly once, for everyone who comes after them.
+    const cold = await guest.get(`/api/music/search?q=dudu&limit=5`).expect(200);
+    expect(cold.body.source).toBe('catalogue');
+    expect(cold.body.results).toEqual([]);
+
+    const search = await guest.get(`/api/music/provider-search?q=dudu&limit=5`).expect(200);
+    expect(search.body.source).toBe('provider');
     expect(search.body.results.length).toBeGreaterThan(0);
     const track = search.body.results[0];
     // The provider key never leaves the server: the client only sees provider + provider track id.

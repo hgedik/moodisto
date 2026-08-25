@@ -74,17 +74,27 @@ describe('rate limiting', () => {
     expect(other.status).toBe(201);
   });
 
-  it('caps searches at thirty a minute and says when to retry', async () => {
+  it('caps provider searches at thirty a minute and says when to retry', async () => {
     const guest = await harness.client();
 
     for (let index = 0; index < 30; index += 1) {
-      await guest.get(`/api/music/search?q=arama-${index}`).expect(200);
+      await guest.get(`/api/music/provider-search?q=arama-${index}`).expect(200);
     }
 
-    const blocked = await guest.get('/api/music/search?q=arama-30');
+    const blocked = await guest.get('/api/music/provider-search?q=arama-30');
     expect(blocked.status).toBe(429);
     expect(blocked.body.code).toBe('RATE_LIMITED');
     expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
+  });
+
+  it('lets the catalogue be searched far more freely than the provider', async () => {
+    // Catalogue searches cost nothing, so the limit only exists to stop abuse. A guest correcting
+    // a typo forty times must never be told to slow down for a search that never left the server.
+    const guest = await harness.client();
+
+    for (let index = 0; index < 40; index += 1) {
+      await guest.get(`/api/music/search?q=yerel-${index}`).expect(200);
+    }
   });
 
   it('throttles QR token guessing', async () => {

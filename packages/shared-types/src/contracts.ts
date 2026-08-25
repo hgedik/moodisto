@@ -38,9 +38,19 @@ export interface TrackSearchResultDto {
   readonly durationSeconds: number | null;
 }
 
+/** Where a set of search results came from, which is also what it cost. */
+export enum MusicSearchSource {
+  /** Tracks Moodisto already knows about. Free, instant, and grows with every provider search. */
+  CATALOGUE = 'catalogue',
+  /** The external provider. Costs quota, so only ever on an explicit request. */
+  PROVIDER = 'provider',
+}
+
 export interface MusicSearchResponse {
   readonly provider: MusicProviderId;
   readonly query: string;
+  readonly source: MusicSearchSource;
+  /** Provider searches only: whether the answer came from the stored search cache. */
   readonly cached: boolean;
   readonly results: readonly TrackSearchResultDto[];
 }

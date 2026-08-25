@@ -151,7 +151,7 @@ describe('authentication and transport security', () => {
 
   it('never lets a provider key reach the client through search', async () => {
     const client = await harness.client();
-    const response = await client.get('/api/music/search?q=duman').expect(200);
+    const response = await client.get('/api/music/provider-search?q=duman').expect(200);
 
     const body = JSON.stringify(response.body);
     expect(body).not.toMatch(/apiKey|api_key|AIza/i);
@@ -162,6 +162,9 @@ describe('authentication and transport security', () => {
 
   it('refuses a search that is too short to be worth a provider call', async () => {
     const client = await harness.client();
+    await client.get('/api/music/provider-search?q=du').expect(400);
+    // The same floor guards the free catalogue endpoint, so a one-letter query can never be used
+    // to walk the whole track table either.
     await client.get('/api/music/search?q=du').expect(400);
     expect(await harness.prisma.musicSearchCache.count()).toBe(0);
   });
@@ -169,10 +172,10 @@ describe('authentication and transport security', () => {
   it('serves the same search from cache the second time', async () => {
     const client = await harness.client();
 
-    const first = await client.get('/api/music/search?q=teoman').expect(200);
+    const first = await client.get('/api/music/provider-search?q=teoman').expect(200);
     expect(first.body.cached).toBe(false);
 
-    const second = await client.get('/api/music/search?q=%20TEOMAN%20').expect(200);
+    const second = await client.get('/api/music/provider-search?q=%20TEOMAN%20').expect(200);
     // Normalisation means casing and padding must not cost a second provider call.
     expect(second.body.cached).toBe(true);
     expect(second.body.results).toEqual(first.body.results);
