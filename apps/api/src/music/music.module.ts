@@ -7,6 +7,7 @@ import {
   MUSIC_PROVIDER_REGISTRY,
   MusicProviderFactory,
 } from './music-provider.factory';
+import { ProviderQuotaService } from './provider-quota.service';
 import { SearchCatalogueUseCase } from './search-catalogue.usecase';
 import { SearchProviderUseCase } from './search-provider.usecase';
 
@@ -27,9 +28,10 @@ import { SearchProviderUseCase } from './search-provider.usecase';
         factory.createRegistry(),
       inject: [MusicProviderFactory],
     },
+    ProviderQuotaService,
     SearchCatalogueUseCase,
     SearchProviderUseCase,
   ],
-  exports: [MUSIC_PROVIDER, MUSIC_PROVIDER_REGISTRY, MusicProviderFactory],
+  exports: [MUSIC_PROVIDER, MUSIC_PROVIDER_REGISTRY, MusicProviderFactory, ProviderQuotaService],
 })
 export class MusicModule {}

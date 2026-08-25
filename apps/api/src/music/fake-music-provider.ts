@@ -3,6 +3,7 @@ import { MusicProviderId } from '@moodisto/shared-types';
 import type {
   MusicProvider,
   MusicProviderCapabilities,
+  MusicProviderQuota,
   MusicSearchOptions,
   PlaybackSource,
   ProviderTrack,
@@ -83,12 +84,24 @@ const FAKE_CAPABILITIES: MusicProviderCapabilities = {
 };
 
 /**
+ * The fake stands in for YouTube, so it charges what YouTube charges. Development and tests then
+ * exercise the same quota arithmetic production does, instead of an unlimited fantasy provider.
+ */
+export const FAKE_QUOTA: MusicProviderQuota = {
+  dailyUnits: 10_000,
+  searchUnits: 101,
+  trackLookupUnits: 1,
+  resetTimeZone: 'America/Los_Angeles',
+};
+
+/**
  * Offline stand-in for a real provider. It keeps local development and end-to-end tests free of
  * network calls and API quota, and proves the provider port has no YouTube-shaped assumptions.
  */
 export class FakeMusicProvider implements MusicProvider {
   readonly id = MusicProviderId.YOUTUBE;
   readonly capabilities = FAKE_CAPABILITIES;
+  readonly quota = FAKE_QUOTA;
 
   async search(query: string, options: MusicSearchOptions): Promise<TrackSearchResult[]> {
     const needle = foldForMatching(query);

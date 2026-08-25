@@ -217,6 +217,23 @@ model MusicSearchCache {
   @@map("music_search_cache")
 }
 
+/// What Moodisto has already spent of a provider's daily allowance.
+///
+/// PostgreSQL is the source of truth here too: restarting the API must not forget the day's spend,
+/// and two API instances must not each believe they have a full allowance.
+model ProviderQuotaUsage {
+  id         String        @id @default(cuid())
+  provider   MusicProvider
+  /// Calendar day in the provider's own reset time zone, as YYYY-MM-DD.
+  periodKey  String
+  spentUnits Int           @default(0)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([provider, periodKey])
+  @@map("provider_quota_usage")
+}
+
 model SongRequest {
   id                String        @id @default(cuid())
   venueId           String

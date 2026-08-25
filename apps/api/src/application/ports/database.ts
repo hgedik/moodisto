@@ -3,6 +3,7 @@ import type {
   CustomerSessionRepository,
   PaymentRepository,
   PlayerRepository,
+  ProviderQuotaRepository,
   QueueRepository,
   SongRequestRepository,
   StatsRepository,
@@ -28,6 +29,7 @@ export interface UnitOfWork {
   readonly player: PlayerRepository;
   readonly payments: PaymentRepository;
   readonly blockedRules: BlockedRuleRepository;
+  readonly providerQuota: ProviderQuotaRepository;
   readonly stats: StatsRepository;
   /**
    * Buffers a realtime message. Messages are dispatched only after the transaction commits, so

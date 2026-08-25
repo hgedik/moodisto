@@ -23,6 +23,12 @@ const createInnerProvider = (): MusicProvider => ({
     allowsBackgroundPlayback: false,
     complianceNotes: [],
   },
+  quota: {
+    dailyUnits: 10_000,
+    searchUnits: 101,
+    trackLookupUnits: 1,
+    resetTimeZone: 'America/Los_Angeles',
+  },
   search: vi.fn(async () => [result]),
   getTrack: vi.fn(async () => ({ ...result, metadata: {} })),
   getPlaybackSource: vi.fn(async () => ({
@@ -111,8 +117,29 @@ describe('CachedMusicProvider', () => {
     expect(inner.getPlaybackSource).toHaveBeenCalledWith('abc123');
   });
 
-  it('exposes the wrapped provider identity and capabilities', () => {
+  it('exposes the wrapped provider identity, capabilities and price list', () => {
     expect(provider.id).toBe(MusicProviderId.YOUTUBE);
     expect(provider.capabilities.requiresVisiblePlayer).toBe(true);
+    expect(provider.quota.searchUnits).toBe(101);
+  });
+
+  describe('cachedSearch', () => {
+    it('answers a warm query without touching the provider', async () => {
+      await provider.search('Tarkan Dudu', { limit: 10 });
+      vi.mocked(inner.search).mockClear();
+
+      const outcome = await provider.cachedSearch('tarkan dudu', { limit: 10 });
+
+      expect(outcome?.results).toEqual([result]);
+      expect(outcome?.cached).toBe(true);
+      expect(inner.search).not.toHaveBeenCalled();
+    });
+
+    it('says nothing rather than guessing when only the provider can answer', async () => {
+      // The caller uses this to decide whether the search is about to cost quota, so a cold query
+      // must be reported as unanswerable instead of as an empty result set.
+      expect(await provider.cachedSearch('hic aranmamis', { limit: 10 })).toBeNull();
+      expect(inner.search).not.toHaveBeenCalled();
+    });
   });
 });

@@ -49,9 +49,29 @@ export interface MusicSearchOptions {
   readonly limit: number;
 }
 
+/**
+ * What a provider charges and how much of it there is per day.
+ *
+ * Declared by the adapter because only it knows its own price list, and read by the application,
+ * which is what turns "we ran out of quota" from a stack trace into a product decision. Swapping
+ * to a licensed provider with a different allowance therefore changes these numbers and nothing
+ * else.
+ */
+export interface MusicProviderQuota {
+  /** Units the provider grants per reset period. */
+  readonly dailyUnits: number;
+  /** Units one search costs, including any follow-up call the adapter needs to complete it. */
+  readonly searchUnits: number;
+  /** Units one track lookup costs. */
+  readonly trackLookupUnits: number;
+  /** IANA time zone the provider resets the allowance in. */
+  readonly resetTimeZone: string;
+}
+
 export interface MusicProvider {
   readonly id: MusicProviderId;
   readonly capabilities: MusicProviderCapabilities;
+  readonly quota: MusicProviderQuota;
   search(query: string, options: MusicSearchOptions): Promise<TrackSearchResult[]>;
   getTrack(providerTrackId: string): Promise<ProviderTrack | null>;
   getPlaybackSource(providerTrackId: string): Promise<PlaybackSource>;

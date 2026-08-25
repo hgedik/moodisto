@@ -3,6 +3,7 @@ export * from './text/normalize-text';
 export * from './queue/queue-placement';
 export * from './queue/playback-health';
 export * from './catalogue/track-search-text';
+export * from './quota/provider-quota';
 export * from './request/request-state-machine';
 export * from './payment/payment-state-machine';
 export * from './filters/blocked-rule-matcher';

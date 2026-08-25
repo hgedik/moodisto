@@ -8,6 +8,14 @@ export const SEARCH_DEBOUNCE_MS = 700;
 export const MAX_SEARCH_RESULTS = 10;
 export const SEARCH_CACHE_TTL_HOURS = 24;
 
+/**
+ * Provider units held back from search so that finishing a request always works.
+ *
+ * A guest who has already chosen their song must never be told to come back tomorrow because the
+ * evening's searching used up the allowance. Sized for a busy night of first-time tracks.
+ */
+export const PROVIDER_QUOTA_REQUEST_RESERVE_UNITS = 500;
+
 export const MAX_TABLE_LABEL_LENGTH = 40;
 export const MAX_REJECTION_REASON_LENGTH = 280;
 export const MAX_BLOCKED_RULE_VALUE_LENGTH = 200;

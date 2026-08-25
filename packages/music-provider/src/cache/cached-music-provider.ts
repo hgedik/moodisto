@@ -3,6 +3,7 @@ import { normalizeSearchQuery } from '@moodisto/queue-engine';
 import type {
   MusicProvider,
   MusicProviderCapabilities,
+  MusicProviderQuota,
   MusicSearchCache,
   MusicSearchOptions,
   PlaybackSource,
@@ -42,21 +43,43 @@ export class CachedMusicProvider implements MusicProvider {
     return this.inner.capabilities;
   }
 
+  public get quota(): MusicProviderQuota {
+    return this.inner.quota;
+  }
+
   public async search(query: string, options: MusicSearchOptions): Promise<TrackSearchResult[]> {
     return (await this.searchWithCacheInfo(query, options)).results;
+  }
+
+  /**
+   * Answers from the cache alone, or null when only the provider itself can answer.
+   *
+   * Separate from {@link searchWithCacheInfo} so a caller can find out whether a search is about
+   * to cost quota *before* it is spent. A cold query is reported as unanswerable rather than as an
+   * empty result set, because the two mean opposite things to whoever holds the budget.
+   */
+  public async cachedSearch(
+    query: string,
+    options: MusicSearchOptions,
+  ): Promise<CachedSearchOutcome | null> {
+    const normalizedQuery = normalizeSearchQuery(query);
+    const cached = await this.cache.read(this.inner.id, normalizedQuery);
+    if (cached === null || cached.length === 0) {
+      return null;
+    }
+    return { results: cached.slice(0, options.limit), cached: true, normalizedQuery };
   }
 
   public async searchWithCacheInfo(
     query: string,
     options: MusicSearchOptions,
   ): Promise<CachedSearchOutcome> {
-    const normalizedQuery = normalizeSearchQuery(query);
-
-    const cached = await this.cache.read(this.inner.id, normalizedQuery);
-    if (cached !== null && cached.length > 0) {
-      return { results: cached.slice(0, options.limit), cached: true, normalizedQuery };
+    const fromCache = await this.cachedSearch(query, options);
+    if (fromCache !== null) {
+      return fromCache;
     }
 
+    const normalizedQuery = normalizeSearchQuery(query);
     const results = await this.inner.search(normalizedQuery, options);
     if (results.length > 0) {
       await this.cache.write(this.inner.id, normalizedQuery, results, this.options.ttlSeconds);

@@ -8,6 +8,7 @@ import type {
   HttpFetch,
   MusicProvider,
   MusicProviderCapabilities,
+  MusicProviderQuota,
   MusicSearchOptions,
   PlaybackSource,
   ProviderTrack,
@@ -35,6 +36,20 @@ const YOUTUBE_CAPABILITIES: MusicProviderCapabilities = Object.freeze({
     'Background-only playback and ad blocking are forbidden by the API Services Terms.',
     'Move to a licensed provider before charging customers for playback in a venue.',
   ]),
+});
+
+/**
+ * YouTube Data API v3's price list, against the free daily allowance every project gets.
+ *
+ * A search costs a `search.list` (100 units) plus the single `videos.list` (1 unit) this adapter
+ * needs to fill in durations — roughly 94 searches a day once the request reserve is held back.
+ * That number is exactly why Moodisto searches its own catalogue first.
+ */
+const YOUTUBE_QUOTA: MusicProviderQuota = Object.freeze({
+  dailyUnits: 10_000,
+  searchUnits: 101,
+  trackLookupUnits: 1,
+  resetTimeZone: 'America/Los_Angeles',
 });
 
 export interface YoutubeMusicProviderOptions {
@@ -81,6 +96,7 @@ function pickThumbnail(thumbnails: ThumbnailMap | undefined): string | null {
 export class YoutubeMusicProvider implements MusicProvider {
   public readonly id = MusicProviderId.YOUTUBE;
   public readonly capabilities = YOUTUBE_CAPABILITIES;
+  public readonly quota = YOUTUBE_QUOTA;
 
   private readonly apiKey: string;
   private readonly httpFetch: HttpFetch;

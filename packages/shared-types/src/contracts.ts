@@ -46,12 +46,27 @@ export enum MusicSearchSource {
   PROVIDER = 'provider',
 }
 
+/**
+ * Whether the expensive door is still open today.
+ *
+ * Sent with every catalogue answer so the search screen can offer — or withhold — the provider
+ * search button without a second round trip, and explain itself when it withholds it.
+ */
+export interface ProviderSearchAvailabilityDto {
+  readonly available: boolean;
+  /** Whole provider searches still affordable today, or null when the provider charges nothing. */
+  readonly remainingSearches: number | null;
+  /** Seconds until the provider hands out a fresh allowance. */
+  readonly resetsInSeconds: number;
+}
+
 export interface MusicSearchResponse {
   readonly provider: MusicProviderId;
   readonly query: string;
   readonly source: MusicSearchSource;
   /** Provider searches only: whether the answer came from the stored search cache. */
   readonly cached: boolean;
+  readonly providerSearch: ProviderSearchAvailabilityDto;
   readonly results: readonly TrackSearchResultDto[];
 }
 

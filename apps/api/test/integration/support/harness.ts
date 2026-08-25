@@ -32,6 +32,7 @@ const TRUNCATED_TABLES = [
   'player_states',
   'blocked_music_rules',
   'music_search_cache',
+  'provider_quota_usage',
   'customer_sessions',
   'venue_qr_codes',
   'venue_request_pricing',

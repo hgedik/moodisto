@@ -3,6 +3,7 @@ import { PrismaBlockedRuleRepository } from './repositories/prisma-blocked-rule.
 import { PrismaCustomerSessionRepository } from './repositories/prisma-customer-session.repository';
 import { PrismaPaymentRepository } from './repositories/prisma-payment.repository';
 import { PrismaPlayerRepository } from './repositories/prisma-player.repository';
+import { PrismaProviderQuotaRepository } from './repositories/prisma-provider-quota.repository';
 import { PrismaQueueRepository } from './repositories/prisma-queue.repository';
 import { PrismaSongRequestRepository } from './repositories/prisma-song-request.repository';
 import { PrismaStatsRepository } from './repositories/prisma-stats.repository';
@@ -23,6 +24,7 @@ export class PrismaUnitOfWork implements UnitOfWork {
   readonly player: PrismaPlayerRepository;
   readonly payments: PrismaPaymentRepository;
   readonly blockedRules: PrismaBlockedRuleRepository;
+  readonly providerQuota: PrismaProviderQuotaRepository;
   readonly stats: PrismaStatsRepository;
 
   private readonly buffered: RealtimeMessage[] = [];
@@ -38,6 +40,7 @@ export class PrismaUnitOfWork implements UnitOfWork {
     this.player = new PrismaPlayerRepository(tx);
     this.payments = new PrismaPaymentRepository(tx);
     this.blockedRules = new PrismaBlockedRuleRepository(tx);
+    this.providerQuota = new PrismaProviderQuotaRepository(tx);
     this.stats = new PrismaStatsRepository(tx);
   }
 

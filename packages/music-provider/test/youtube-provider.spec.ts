@@ -184,3 +184,21 @@ describe('YoutubeMusicProvider', () => {
     );
   });
 });
+
+describe('YoutubeMusicProvider quota', () => {
+  it('declares what YouTube charges, so the application never hard-codes it', () => {
+    const provider = new YoutubeMusicProvider({ apiKey: 'test-key', httpFetch: async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ items: [] }),
+      text: async () => '',
+    }) });
+
+    // A search is one search.list (100) plus the videos.list (1) needed to complete the results.
+    expect(provider.quota.searchUnits).toBe(101);
+    expect(provider.quota.trackLookupUnits).toBe(1);
+    expect(provider.quota.dailyUnits).toBe(10_000);
+    // YouTube's allowance resets at midnight Pacific, not at midnight where the venue is.
+    expect(provider.quota.resetTimeZone).toBe('America/Los_Angeles');
+  });
+});

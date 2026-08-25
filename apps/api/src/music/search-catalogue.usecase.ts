@@ -5,6 +5,7 @@ import { MusicSearchSource, type MusicSearchResponse } from '@moodisto/shared-ty
 import type { MusicSearchQuery } from '@moodisto/validation';
 import { DATABASE, type Database, type TrackRecord } from '../application/ports';
 import { MUSIC_PROVIDER } from './music-provider.factory';
+import { ProviderQuotaService } from './provider-quota.service';
 import { toTrackSearchResultDto } from './track-search-result.mapper';
 import { filterTracksBlockedByVenue } from './venue-track-visibility';
 
@@ -19,6 +20,7 @@ export class SearchCatalogueUseCase {
   constructor(
     @Inject(DATABASE) private readonly database: Database,
     @Inject(MUSIC_PROVIDER) private readonly provider: MusicProvider,
+    private readonly quota: ProviderQuotaService,
   ) {}
 
   async execute(query: MusicSearchQuery): Promise<MusicSearchResponse> {
@@ -37,6 +39,9 @@ export class SearchCatalogueUseCase {
       query: tokens.join(' '),
       source: MusicSearchSource.CATALOGUE,
       cached: false,
+      // Sent with every answer so the screen can offer the paid search — or explain why it cannot
+      // — without a second round trip.
+      providerSearch: await this.quota.availability(),
       results: visible.map(toTrackSearchResultDto),
     };
   }

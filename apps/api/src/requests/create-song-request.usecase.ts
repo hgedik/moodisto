@@ -29,6 +29,7 @@ import { APP_CONFIG } from '../config/config.module';
 import type { AppConfig } from '../config/app-config';
 import { ConflictError, NotFoundError, UnprocessableError } from '../common/errors';
 import { MUSIC_PROVIDER } from '../music/music-provider.factory';
+import { ProviderQuotaService } from '../music/provider-quota.service';
 import type { CustomerIdentity } from '../auth/authenticated-request';
 
 /**
@@ -58,6 +59,7 @@ export class CreateSongRequestUseCase {
     @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider,
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly quota: ProviderQuotaService,
   ) {}
 
   async execute(
@@ -211,6 +213,9 @@ export class CreateSongRequestUseCase {
       return known;
     }
 
+    // This is what the request reserve exists for: a guest who has already chosen their song must
+    // not be turned away because the evening's searching used the allowance up.
+    await this.quota.consumeTrackLookup();
     const fetched = await this.provider.getTrack(input.providerTrackId);
     if (!fetched) {
       throw new NotFoundError('Parça bulunamadı.', 'TRACK_NOT_FOUND');

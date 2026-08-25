@@ -189,6 +189,31 @@ export interface PaymentRepository {
   ): Promise<PaymentRecord>;
 }
 
+/**
+ * The ledger of what has been spent of a provider's daily allowance.
+ *
+ * A stored ledger rather than a counter in memory, because the allowance belongs to the
+ * deployment: an API restart must not forget the day's spend, and two instances must not each
+ * believe they have a full day left.
+ */
+export interface ProviderQuotaRepository {
+  /** Units already booked in the given period. Zero when nothing has been spent yet. */
+  spentUnits(provider: MusicProviderId, periodKey: string): Promise<number>;
+  /**
+   * Books `units` against the period, but only while the total stays within `ceilingUnits`.
+   *
+   * Check and increment are one statement, so two searches arriving together can never both read
+   * the same old total and overspend the allowance. Returns the new total, or null when there was
+   * not enough left — which is a product outcome, not a failure.
+   */
+  tryConsume(input: {
+    provider: MusicProviderId;
+    periodKey: string;
+    units: number;
+    ceilingUnits: number;
+  }): Promise<number | null>;
+}
+
 export interface BlockedRuleRepository {
   listByVenue(venueId: string): Promise<readonly BlockedRuleRecord[]>;
   create(input: {
