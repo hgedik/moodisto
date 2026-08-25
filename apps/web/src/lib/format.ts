@@ -62,6 +62,17 @@ export const formatRelative = (iso: string): string => {
   return formatDateTime(iso);
 };
 
+/** How long until something opens up again, rounded the way a person would say it. */
+export const formatCountdown = (seconds: number): string => {
+  if (seconds < 60) {
+    return 'birkaç saniye';
+  }
+  if (seconds < 3600) {
+    return `${Math.ceil(seconds / 60)} dakika`;
+  }
+  return `${Math.ceil(seconds / 3600)} saat`;
+};
+
 export const formatDistance = (meters: number): string =>
   meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(1)} km`;
 

@@ -60,9 +60,24 @@ export const publicApi = {
       signal,
     }),
 
-  /** The provider key stays on the server; the browser only ever sees provider + track id. */
+  /**
+   * Searches the tracks Moodisto already stores. Free, so every keystroke may use it.
+   *
+   * The provider key stays on the server; the browser only ever sees provider + track id.
+   */
   search: (q: string, limit: number, venueId: string | undefined, signal: AbortSignal) =>
     apiFetch<MusicSearchResponse>('/music/search', { query: { q, limit, venueId }, signal }),
+
+  /**
+   * Searches the external provider, which costs the venue's daily allowance.
+   *
+   * Only ever called from an explicit tap, never from typing.
+   */
+  providerSearch: (q: string, limit: number, venueId: string | undefined, signal: AbortSignal) =>
+    apiFetch<MusicSearchResponse>('/music/provider-search', {
+      query: { q, limit, venueId },
+      signal,
+    }),
 
   createRequest: (slug: string, body: CreateSongRequestInput) =>
     apiFetch<CreateSongRequestResponse>(`/venues/${encodeURIComponent(slug)}/requests`, {

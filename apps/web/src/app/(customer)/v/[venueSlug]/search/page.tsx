@@ -3,19 +3,21 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type {
+  ProviderSearchAvailabilityDto,
   RequestTypeOptionDto,
   TrackSearchResultDto,
   VenueDetailDto,
 } from '@moodisto/shared-types';
+import { MusicSearchSource } from '@moodisto/shared-types';
 import {
   MAX_SEARCH_RESULTS,
   MAX_TABLE_LABEL_LENGTH,
   MIN_SEARCH_QUERY_LENGTH,
   SEARCH_DEBOUNCE_MS,
 } from '@moodisto/validation';
-import { errorMessage } from '@/lib/api-client';
+import { ApiError, errorMessage } from '@/lib/api-client';
 import { publicApi } from '@/lib/endpoints';
-import { formatMoney, requestTypeHint, requestTypeLabel } from '@/lib/format';
+import { formatCountdown, formatMoney, requestTypeHint, requestTypeLabel } from '@/lib/format';
 import { readTableLabel, rememberTableLabel } from '@/lib/table-label';
 import { useResource } from '@/lib/use-resource';
 import { TrackSummary } from '@/components/track-summary';
@@ -36,7 +38,10 @@ export default function SearchPage() {
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<readonly TrackSearchResultDto[] | null>(null);
+  const [source, setSource] = useState<MusicSearchSource>(MusicSearchSource.CATALOGUE);
+  const [providerSearch, setProviderSearch] = useState<ProviderSearchAvailabilityDto | null>(null);
   const [searching, setSearching] = useState(false);
+  const [askingProvider, setAskingProvider] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [selected, setSelected] = useState<TrackSearchResultDto | null>(null);
 
@@ -45,8 +50,8 @@ export default function SearchPage() {
   const venueId = venue.data?.id;
 
   /**
-   * Search costs external quota, so nothing leaves the browser until the guest stops typing for
-   * {@link SEARCH_DEBOUNCE_MS} and has entered at least {@link MIN_SEARCH_QUERY_LENGTH} characters.
+   * Typing only ever searches the local catalogue, which costs nothing. The debounce and the
+   * minimum length are still there, but now they spare the database rather than a paid allowance.
    */
   useEffect(() => {
     if (trimmed.length < MIN_SEARCH_QUERY_LENGTH) {
@@ -62,6 +67,8 @@ export default function SearchPage() {
         .search(trimmed, MAX_SEARCH_RESULTS, venueId, controller.signal)
         .then((response) => {
           setResults(response.results);
+          setSource(response.source);
+          setProviderSearch(response.providerSearch);
           setSearchError(null);
         })
         .catch((cause: unknown) => {
@@ -81,6 +88,38 @@ export default function SearchPage() {
       controller.abort();
     };
   }, [trimmed, venueId]);
+
+  /**
+   * Asks the external provider, spending part of the day's allowance.
+   *
+   * Only ever reached from a tap: the guest is the one who decides the catalogue did not have what
+   * they were looking for. Whatever comes back joins the catalogue, so the next guest gets it free.
+   */
+  const askProvider = async (): Promise<void> => {
+    const controller = new AbortController();
+    setAskingProvider(true);
+    setSearchError(null);
+    try {
+      const response = await publicApi.providerSearch(
+        trimmed,
+        MAX_SEARCH_RESULTS,
+        venueId,
+        controller.signal,
+      );
+      setResults(response.results);
+      setSource(response.source);
+      setProviderSearch(response.providerSearch);
+    } catch (cause) {
+      setSearchError(errorMessage(cause));
+      if (cause instanceof ApiError && cause.code === 'PROVIDER_QUOTA_EXHAUSTED') {
+        setProviderSearch((previous) =>
+          previous ? { ...previous, available: false, remainingSearches: 0 } : previous,
+        );
+      }
+    } finally {
+      setAskingProvider(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -106,23 +145,52 @@ export default function SearchPage() {
       {searching && !searchError ? <Spinner label="Aranıyor…" /> : null}
 
       {!searching && results !== null ? (
-        results.length === 0 ? (
-          <EmptyState title="Sonuç bulunamadı" hint="Başka bir yazımla dene." />
-        ) : (
-          <ul className="space-y-2">
-            {results.map((track) => (
-              <li key={`${track.provider}:${track.providerTrackId}`}>
-                <button
-                  type="button"
-                  onClick={() => setSelected(track)}
-                  className="w-full rounded-xl p-2 text-left transition-colors hover:bg-white/6 active:bg-white/10"
-                >
-                  <TrackSummary track={track} />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )
+        <>
+          {results.length === 0 ? (
+            <EmptyState
+              title="Sonuç bulunamadı"
+              hint={
+                source === MusicSearchSource.CATALOGUE
+                  ? 'Bu parça henüz mekânın kataloğunda yok. Aşağıdan müzik servisinde arayabilirsin.'
+                  : 'Başka bir yazımla dene.'
+              }
+            />
+          ) : (
+            <ul className="space-y-2">
+              {results.map((track) => (
+                <li key={`${track.provider}:${track.providerTrackId}`}>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(track)}
+                    className="w-full rounded-xl p-2 text-left transition-colors hover:bg-white/6 active:bg-white/10"
+                  >
+                    <TrackSummary track={track} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* The paid door, only ever behind a tap: the guest decides the catalogue fell short. */}
+          {source === MusicSearchSource.CATALOGUE ? (
+            providerSearch?.available === false ? (
+              <Notice tone="info">
+                Müzik servisinde arama bugünlük doldu, yaklaşık{' '}
+                {formatCountdown(providerSearch.resetsInSeconds)} sonra yeniden açılıyor. Şimdilik
+                mekânın kataloğundan seçebilirsin.
+              </Notice>
+            ) : (
+              <Button
+                variant="secondary"
+                className="w-full"
+                disabled={askingProvider}
+                onClick={() => void askProvider()}
+              >
+                {askingProvider ? 'Müzik servisinde aranıyor…' : 'Müzik servisinde ara'}
+              </Button>
+            )
+          ) : null}
+        </>
       ) : null}
 
       {selected && venue.data ? (
