@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProviderPlayerProps } from './provider-player';
 
 /**
@@ -78,6 +78,18 @@ const loadIframeApi = (): Promise<YouTubeNamespace> => {
   return apiPromise;
 };
 
+/**
+ * Playback states the API reports as documented numbers.
+ *
+ * Only the two that mean "loaded but not playing" are needed here, and they are read from a
+ * player instance rather than the namespace, so they are spelled out instead of looked up.
+ */
+const YT_UNSTARTED = -1;
+const YT_CUED = 5;
+
+/** How long the embed is given to actually start before autoplay counts as refused. */
+const AUTOPLAY_GRACE_MS = 1_500;
+
 const ERROR_MESSAGES: Record<number, string> = {
   2: 'Parça kimliği geçersiz.',
   5: 'Parça bu oynatıcıda çalınamıyor.',
@@ -96,10 +108,17 @@ export function YouTubePlayer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<YouTubePlayerInstance | null>(null);
   const loadedRef = useRef<string | null>(null);
+  // The embed is built once and then told which track to play, so the iframe outlives a track
+  // change. Until YouTube reports it ready, `loadVideoById` and `playVideo` are simply ignored,
+  // which is why readiness is state and not a ref: the sync effect has to run again once it flips.
+  const [ready, setReady] = useState(false);
 
   // Callbacks are read through refs so a parent re-render never rebuilds the iframe mid-track.
   const handlers = useRef({ onEnded, onError, onBlocked });
   handlers.current = { onEnded, onError, onBlocked };
+  // The track the embed should be showing, readable from inside the one-shot mount effect.
+  const trackRef = useRef(providerTrackId);
+  trackRef.current = providerTrackId;
 
   useEffect(() => {
     let cancelled = false;
@@ -115,9 +134,21 @@ export function YouTubePlayer({
         }
         const host = document.createElement('div');
         mount.appendChild(host);
+        // The first track is handed over at construction time. Without it the API builds an
+        // embed with no video in it, and every later `loadVideoById` lands on a player that has
+        // nothing to replace.
+        const initialTrackId = trackRef.current;
         playerRef.current = new yt.Player(host, {
+          videoId: initialTrackId,
           playerVars: { autoplay: 0, playsinline: 1, rel: 0, modestbranding: 1 },
           events: {
+            onReady: () => {
+              if (cancelled) {
+                return;
+              }
+              loadedRef.current = initialTrackId;
+              setReady(true);
+            },
             onStateChange: (event) => {
               if (event.data === yt.PlayerState.ENDED) {
                 handlers.current.onEnded();
@@ -146,29 +177,47 @@ export function YouTubePlayer({
       playerRef.current?.destroy();
       playerRef.current = null;
       loadedRef.current = null;
+      setReady(false);
       mount.replaceChildren();
     };
   }, []);
 
+  /**
+   * Asks the embed to start, and reports back if it refuses.
+   *
+   * A browser that blocks autoplay does not throw: `playVideo` returns and the player simply stays
+   * unstarted. The state is therefore read again a moment later, so the venue is told to tap the
+   * embed once instead of watching a queue that never moves.
+   */
+  const play = useCallback((player: YouTubePlayerInstance): (() => void) => {
+    player.playVideo();
+    const timer = setTimeout(() => {
+      if (playerRef.current !== player) {
+        return;
+      }
+      const state = player.getPlayerState();
+      if (state === YT_UNSTARTED || state === YT_CUED) {
+        handlers.current.onBlocked();
+      }
+    }, AUTOPLAY_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     const player = playerRef.current;
-    if (!player) {
+    if (!player || !ready) {
       return;
     }
     if (loadedRef.current !== providerTrackId) {
       loadedRef.current = providerTrackId;
       player.loadVideoById(providerTrackId);
     }
-    try {
-      if (paused) {
-        player.pauseVideo();
-      } else {
-        player.playVideo();
-      }
-    } catch {
-      handlers.current.onBlocked();
+    if (paused) {
+      player.pauseVideo();
+      return;
     }
-  }, [providerTrackId, paused]);
+    return play(player);
+  }, [providerTrackId, paused, ready, play]);
 
   return (
     <div className="aspect-video w-full overflow-hidden rounded-xl bg-black">
