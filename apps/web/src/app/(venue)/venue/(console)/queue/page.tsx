@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react';
 import type { QueueEntryDto, QueueUpdatedPayload } from '@moodisto/shared-types';
-import { ServerEvent } from '@moodisto/shared-types';
+import { RequestType, ServerEvent } from '@moodisto/shared-types';
 import { errorMessage } from '@/lib/api-client';
 import { venueApi } from '@/lib/endpoints';
 import { formatRelative, requestTypeLabel } from '@/lib/format';
@@ -127,7 +127,8 @@ export default function VenueQueuePage() {
           <span className="text-xs text-muted">{upcoming.length} parça</span>
         </div>
         <p className="text-xs text-muted">
-          Sırayı sürükleyerek ya da ok tuşlarıyla değiştirebilirsin.
+          Öncelikli istekler bekleyen normal isteklerin önüne yerleşir; rozetler hangi isteğin neden
+          öne geçtiğini gösterir. Sırayı sürükleyerek ya da ok tuşlarıyla değiştirebilirsin.
         </p>
 
         {queue.loading ? (
@@ -158,6 +159,11 @@ export default function VenueQueuePage() {
                   {index + 1}
                 </span>
                 <TrackSummary track={entry.track} size="sm" className="min-w-48 flex-1" />
+                {/* Only the tiers that jump the line are called out; labelling every normal row
+                    would bury the one piece of information the operator is looking for. */}
+                {entry.requestType === RequestType.NORMAL ? null : (
+                  <Badge tone="brand">{requestTypeLabel[entry.requestType]}</Badge>
+                )}
                 <span className="text-xs text-muted">
                   {entry.tableLabel ?? '—'} · {formatRelative(entry.createdAt)}
                 </span>
