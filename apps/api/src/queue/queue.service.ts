@@ -149,6 +149,11 @@ export class QueueService {
       outcome === 'COMPLETED' ? QueueItemState.COMPLETED : QueueItemState.FAILED,
       { endedAt: now },
     );
+    if (outcome === 'COMPLETED') {
+      // A skipped track counts here too: it did reach the speakers, which is exactly the question
+      // the catalogue is asking. Whether the venue liked it is a different matter.
+      await uow.tracks.markPlayedOk(current.track.id, now);
+    }
     return current;
   }
 

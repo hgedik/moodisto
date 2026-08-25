@@ -73,6 +73,21 @@ export class PrismaTrackRepository implements TrackRepository {
     return rows.map(toTrackRecord);
   }
 
+  /**
+   * A track only becomes "proven" by actually playing, which is also the only evidence strong
+   * enough to lift an earlier block.
+   */
+  async markPlayedOk(trackId: string, at: Date): Promise<void> {
+    await this.tx.track.update({
+      where: { id: trackId },
+      data: { lastPlayedOkAt: at, playbackBlockedAt: null },
+    });
+  }
+
+  async markPlaybackBlocked(trackId: string, at: Date): Promise<void> {
+    await this.tx.track.update({ where: { id: trackId }, data: { playbackBlockedAt: at } });
+  }
+
   async findByProviderTrackId(
     provider: MusicProviderId,
     providerTrackId: string,

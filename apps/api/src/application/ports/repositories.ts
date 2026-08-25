@@ -94,6 +94,20 @@ export interface TrackRepository {
     tokens: readonly string[];
     limit: number;
   }): Promise<readonly TrackRecord[]>;
+  /**
+   * Records that the track reached a venue's speakers and played.
+   *
+   * Also clears any earlier block: a track that just played is playable, whatever an older
+   * failure claimed about it.
+   */
+  markPlayedOk(trackId: string, at: Date): Promise<void>;
+  /**
+   * Records that the provider itself refused the track, taking it out of every venue's catalogue.
+   *
+   * Reserved for the provider's own verdict. A venue-side fault must never reach here, because one
+   * café's broken connection would otherwise shrink the catalogue for all of them.
+   */
+  markPlaybackBlocked(trackId: string, at: Date): Promise<void>;
   findByProviderTrackId(
     provider: MusicProviderId,
     providerTrackId: string,

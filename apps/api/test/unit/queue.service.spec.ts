@@ -136,6 +136,15 @@ class FakeUnitOfWork {
     },
   };
 
+  /** What the service told the catalogue about the tracks it played. */
+  readonly provenTracks: { trackId: string; at: Date }[] = [];
+
+  readonly tracks = {
+    markPlayedOk: async (trackId: string, at: Date): Promise<void> => {
+      this.provenTracks.push({ trackId, at });
+    },
+  };
+
   readonly player = {
     getState: async (): Promise<PlayerStateRecord | null> => this.playerState,
     saveState: async (input: {
@@ -192,6 +201,30 @@ describe('QueueService', () => {
     await service.finishCurrent(uow.asUnitOfWork(), venueId, now, 'COMPLETED');
 
     expect(uow.statusUpdates('request-1')).toEqual([RequestStatus.COMPLETED]);
+  });
+
+  it('tells the catalogue that a finished track is one that really plays', async () => {
+    const uow = new FakeUnitOfWork(
+      [queueEntry({ state: QueueItemState.PLAYING, startedAt: now })],
+      [songRequest({ status: RequestStatus.PLAYING })],
+    );
+
+    await service.finishCurrent(uow.asUnitOfWork(), venueId, now, 'COMPLETED');
+
+    expect(uow.provenTracks).toEqual([{ trackId: track.id, at: now }]);
+  });
+
+  it('says nothing about a track that failed, because the reason is not its to judge', async () => {
+    const uow = new FakeUnitOfWork(
+      [queueEntry({ state: QueueItemState.PLAYING, startedAt: now })],
+      [songRequest({ status: RequestStatus.PLAYING })],
+    );
+
+    await service.finishCurrent(uow.asUnitOfWork(), venueId, now, 'FAILED');
+
+    // Whether the failure was the track's fault or this venue's is decided where the provider's
+    // error code is known, not here.
+    expect(uow.provenTracks).toEqual([]);
   });
 
   it('tells the guest their song was taken out of the queue', async () => {

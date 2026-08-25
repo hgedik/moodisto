@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createHarness, type Client, type Harness } from './support/harness';
-import { createVenueFixture, type VenueFixture } from './support/fixtures';
+import {
+  createPendingRequests,
+  createVenueFixture,
+  VENUE_PASSWORD,
+  type VenueFixture,
+} from './support/fixtures';
 
 /**
  * Provider search is the only thing in Moodisto that costs external quota, so what the catalogue
@@ -68,7 +73,7 @@ describe('catalogue search', () => {
     await guest.get(`/api/music/provider-search?q=${encodeURIComponent(query)}`).expect(200);
   };
 
-  const catalogue = async (query: string, venueId?: string): Promise<Client['get'] extends never ? never : any> => {
+  const catalogue = async (query: string, venueId?: string) => {
     const suffix = venueId === undefined ? '' : `&venueId=${venueId}`;
     return guest.get(`/api/music/search?q=${encodeURIComponent(query)}${suffix}`).expect(200);
   };
@@ -170,5 +175,120 @@ describe('catalogue search', () => {
     const response = await catalogue('dudu', venue.venueId);
 
     expect(response.body.results).toEqual([]);
+  });
+});
+
+/**
+ * The catalogue only pays for itself if it stays honest about what actually plays. Playback is the
+ * one place Moodisto learns that, so these tests pin down which failures are the track's fault and
+ * which are only this venue's.
+ */
+describe('catalogue playability feedback', () => {
+  let harness: Harness;
+  let guest: Client;
+  let admin: Client;
+  let venue: VenueFixture;
+
+  const SESSION_ID = 'player-tab-catalogue';
+
+  /** Warms the catalogue, then puts the requested track on the speakers of this venue. */
+  const playTrack = async (providerTrackId: string): Promise<{ trackId: string; itemId: string }> => {
+    await guest.get('/api/music/provider-search?q=tarkan').expect(200);
+    const track = await harness.prisma.track.findFirstOrThrow({ where: { providerTrackId } });
+    const [requestId] = await createPendingRequests(harness.prisma, venue.venueId, [track.id]);
+    await admin.post(`/api/venue/requests/${requestId}/accept`).expect(201);
+    const started = await admin
+      .post('/api/venue/player/start', { sessionId: SESSION_ID, takeover: true })
+      .expect(201);
+    return { trackId: track.id, itemId: started.body.current.id };
+  };
+
+  const catalogueIds = async (query: string): Promise<string[]> => {
+    const response = await guest.get(`/api/music/search?q=${query}`).expect(200);
+    return response.body.results.map((result: { providerTrackId: string }) => result.providerTrackId);
+  };
+
+  beforeAll(async () => {
+    harness = await createHarness();
+  });
+
+  afterAll(async () => {
+    await harness.close();
+  });
+
+  beforeEach(async () => {
+    await harness.reset();
+    guest = await harness.client();
+    venue = await createVenueFixture(harness.prisma);
+    admin = await harness.client();
+    await admin
+      .post('/api/auth/venue/login', { email: venue.ownerEmail, password: VENUE_PASSWORD })
+      .expect(201);
+  });
+
+  it('marks a track that played through as proven', async () => {
+    const { trackId, itemId } = await playTrack('fake-dudu');
+
+    await admin
+      .post('/api/venue/player/complete', { sessionId: SESSION_ID, queueItemId: itemId })
+      .expect(201);
+
+    const track = await harness.prisma.track.findUniqueOrThrow({ where: { id: trackId } });
+    expect(track.lastPlayedOkAt).not.toBeNull();
+  });
+
+  it('drops a track the provider itself refused out of the catalogue', async () => {
+    const { trackId, itemId } = await playTrack('fake-dudu');
+
+    await admin
+      .post('/api/venue/player/error', {
+        sessionId: SESSION_ID,
+        queueItemId: itemId,
+        code: 'EMBED_NOT_ALLOWED',
+        message: 'Video gömülü oynatmaya kapalı.',
+      })
+      .expect(201);
+
+    const track = await harness.prisma.track.findUniqueOrThrow({ where: { id: trackId } });
+    expect(track.playbackBlockedAt).not.toBeNull();
+    // Nobody should be offered it again, at this venue or any other.
+    expect(await catalogueIds('dudu')).not.toContain('fake-dudu');
+  });
+
+  it('keeps a track whose failure was only about this venue', async () => {
+    const { trackId, itemId } = await playTrack('fake-dudu');
+
+    await admin
+      .post('/api/venue/player/error', {
+        sessionId: SESSION_ID,
+        queueItemId: itemId,
+        code: 'NETWORK_ERROR',
+        message: 'Ağ bağlantısı koptu.',
+      })
+      .expect(201);
+
+    const track = await harness.prisma.track.findUniqueOrThrow({ where: { id: trackId } });
+    // A dropped connection at one café says nothing about the track, so the shared catalogue
+    // must not shrink for everyone else.
+    expect(track.playbackBlockedAt).toBeNull();
+    expect(await catalogueIds('dudu')).toContain('fake-dudu');
+  });
+
+  it('takes a blocked track back once it plays through somewhere', async () => {
+    const { trackId, itemId } = await playTrack('fake-dudu');
+    await harness.prisma.track.update({
+      where: { id: trackId },
+      data: { playbackBlockedAt: new Date() },
+    });
+    expect(await catalogueIds('dudu')).not.toContain('fake-dudu');
+
+    await admin
+      .post('/api/venue/player/complete', { sessionId: SESSION_ID, queueItemId: itemId })
+      .expect(201);
+
+    // The provider changed its mind, or the block was wrong; either way the evidence is newer.
+    const track = await harness.prisma.track.findUniqueOrThrow({ where: { id: trackId } });
+    expect(track.playbackBlockedAt).toBeNull();
+    expect(await catalogueIds('dudu')).toContain('fake-dudu');
   });
 });

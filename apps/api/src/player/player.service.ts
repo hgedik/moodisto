@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PLAYER_LEASE_STALE_AFTER_SECONDS } from '@moodisto/validation';
-import { shouldHaltPlayback } from '@moodisto/queue-engine';
+import { isPermanentPlaybackFailure, shouldHaltPlayback } from '@moodisto/queue-engine';
 import {
   PlaybackState,
   PlayerCommand,
@@ -121,12 +121,17 @@ export class PlayerService {
    */
   async reportError(
     venueId: string,
-    input: { sessionId: string; queueItemId: string },
+    input: { sessionId: string; queueItemId: string; code?: string | null },
   ): Promise<PlayerStateDto> {
     return this.transition(venueId, input.sessionId, async (uow, now) => {
       const current = await uow.queue.findCurrent(venueId);
       if (!current || current.id !== input.queueItemId) {
         return;
+      }
+      // Only the provider's own verdict on the track may take it away from the shared catalogue;
+      // a blocked network or a stalled tab is this venue's problem alone.
+      if (input.code && isPermanentPlaybackFailure(input.code)) {
+        await uow.tracks.markPlaybackBlocked(current.track.id, now);
       }
       await this.queue.finishCurrent(uow, venueId, now, 'FAILED');
 
