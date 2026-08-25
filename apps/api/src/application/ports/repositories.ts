@@ -130,6 +130,11 @@ export interface QueueRepository {
   /** Locks and returns the next queued item, skipping rows another transaction already holds. */
   claimNextQueued(venueId: string): Promise<QueueEntryRecord | null>;
   countQueued(venueId: string): Promise<number>;
+  /**
+   * How many items failed since the last one that actually played through, which is what tells a
+   * broken single video apart from a venue whose whole catalogue refuses to play.
+   */
+  countFailuresSinceLastPlayback(venueId: string): Promise<number>;
 }
 
 export interface PlayerRepository {

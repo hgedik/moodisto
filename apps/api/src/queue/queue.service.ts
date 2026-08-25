@@ -188,6 +188,22 @@ export class QueueService {
     return started;
   }
 
+  /**
+   * Parks the player without touching the queue.
+   *
+   * Used when advancing would only burn through more requests: the waiting items stay `QUEUED`
+   * so the venue can fix whatever is wrong and pick the evening up where it left off.
+   */
+  async halt(uow: UnitOfWork, venueId: string): Promise<void> {
+    await this.compact(uow, venueId);
+    await uow.player.saveState({
+      venueId,
+      state: PlaybackState.ERROR,
+      queueItemId: null,
+      startedAt: null,
+    });
+  }
+
   async buildNowPlaying(uow: UnitOfWork, venueId: string): Promise<NowPlayingDto> {
     const snapshot = await this.snapshot(uow, venueId);
     const state = await uow.player.getState(venueId);

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { PLAYER_LEASE_STALE_AFTER_SECONDS } from '@moodisto/validation';
+import { MAX_CONSECUTIVE_PLAYBACK_FAILURES } from '@moodisto/queue-engine';
 import { createHarness, type Client, type Harness } from './support/harness';
 import {
   createPendingRequests,
@@ -110,6 +111,94 @@ describe('player lease and playback', () => {
     expect(
       (await harness.prisma.queueItem.findUniqueOrThrow({ where: { id: brokenItemId } })).state,
     ).toBe('FAILED');
+  });
+
+  it('stops burning the queue once too many tracks fail in a row', async () => {
+    // A catalogue the venue cannot embed used to drain the whole evening in one second: every
+    // error advanced, the next track errored too, and the guests' requests were gone.
+    await queueSongs(MAX_CONSECUTIVE_PLAYBACK_FAILURES + 2);
+    const sessionId = 'player-tab-cascade';
+
+    let state = await admin.post('/api/venue/player/start', { sessionId, takeover: true }).expect(201);
+
+    for (let attempt = 0; attempt < MAX_CONSECUTIVE_PLAYBACK_FAILURES; attempt += 1) {
+      state = await admin
+        .post('/api/venue/player/error', {
+          sessionId,
+          queueItemId: state.body.current.id,
+          code: 'EMBED_NOT_ALLOWED',
+          message: 'Video gömülü oynatmaya kapalı.',
+        })
+        .expect(201);
+    }
+
+    expect(state.body.state).toBe('ERROR');
+    expect(state.body.current).toBeNull();
+    // Everything the venue has not tried yet is still waiting for it.
+    expect(state.body.upcoming).toHaveLength(2);
+    expect(
+      await harness.prisma.queueItem.count({ where: { venueId: venue.venueId, state: 'QUEUED' } }),
+    ).toBe(2);
+    expect(
+      await harness.prisma.queueItem.count({ where: { venueId: venue.venueId, state: 'FAILED' } }),
+    ).toBe(MAX_CONSECUTIVE_PLAYBACK_FAILURES);
+  });
+
+  it('starts the failure budget over once a track reaches the speakers', async () => {
+    await queueSongs(MAX_CONSECUTIVE_PLAYBACK_FAILURES + 2);
+    const sessionId = 'player-tab-recovered';
+
+    let state = await admin.post('/api/venue/player/start', { sessionId, takeover: true }).expect(201);
+
+    for (let attempt = 0; attempt < MAX_CONSECUTIVE_PLAYBACK_FAILURES - 1; attempt += 1) {
+      state = await admin
+        .post('/api/venue/player/error', {
+          sessionId,
+          queueItemId: state.body.current.id,
+          code: 'EMBED_NOT_ALLOWED',
+          message: 'Video gömülü oynatmaya kapalı.',
+        })
+        .expect(201);
+    }
+
+    state = await admin
+      .post('/api/venue/player/complete', { sessionId, queueItemId: state.body.current.id })
+      .expect(201);
+
+    const afterGoodTrack = await admin
+      .post('/api/venue/player/error', {
+        sessionId,
+        queueItemId: state.body.current.id,
+        code: 'EMBED_NOT_ALLOWED',
+        message: 'Video gömülü oynatmaya kapalı.',
+      })
+      .expect(201);
+
+    expect(afterGoodTrack.body.state).toBe('PLAYING');
+    expect(afterGoodTrack.body.current).not.toBeNull();
+  });
+
+  it('picks the queue back up when the venue retries a halted player', async () => {
+    await queueSongs(MAX_CONSECUTIVE_PLAYBACK_FAILURES + 1);
+    const sessionId = 'player-tab-retry';
+
+    let state = await admin.post('/api/venue/player/start', { sessionId, takeover: true }).expect(201);
+    for (let attempt = 0; attempt < MAX_CONSECUTIVE_PLAYBACK_FAILURES; attempt += 1) {
+      state = await admin
+        .post('/api/venue/player/error', {
+          sessionId,
+          queueItemId: state.body.current.id,
+          code: 'EMBED_NOT_ALLOWED',
+          message: 'Video gömülü oynatmaya kapalı.',
+        })
+        .expect(201);
+    }
+    expect(state.body.state).toBe('ERROR');
+
+    const retried = await admin.post('/api/venue/player/resume', { sessionId }).expect(201);
+
+    expect(retried.body.state).toBe('PLAYING');
+    expect(retried.body.current).not.toBeNull();
   });
 
   it('ignores a late completion for a track that is no longer current', async () => {

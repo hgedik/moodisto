@@ -124,4 +124,23 @@ export class PrismaQueueRepository implements QueueRepository {
   async countQueued(venueId: string): Promise<number> {
     return this.tx.queueItem.count({ where: { venueId, state: QueueItemState.QUEUED } });
   }
+
+  /**
+   * The reference point is the last item that reached the speakers, so a single unplayable video
+   * in an otherwise healthy evening never accumulates towards the halt threshold.
+   */
+  async countFailuresSinceLastPlayback(venueId: string): Promise<number> {
+    const rows = await this.tx.$queryRaw<{ count: number }[]>`
+      SELECT COUNT(*)::int AS count
+      FROM queue_items
+      WHERE "venueId" = ${venueId}
+        AND state = 'FAILED'::"QueueItemState"
+        AND "completedAt" > COALESCE(
+          (SELECT MAX("completedAt") FROM queue_items
+            WHERE "venueId" = ${venueId} AND state = 'COMPLETED'::"QueueItemState"),
+          '-infinity'::timestamptz
+        )
+    `;
+    return rows[0]?.count ?? 0;
+  }
 }

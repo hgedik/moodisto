@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PLAYER_LEASE_STALE_AFTER_SECONDS } from '@moodisto/validation';
+import { shouldHaltPlayback } from '@moodisto/queue-engine';
 import {
   PlaybackState,
   PlayerCommand,
@@ -110,7 +111,14 @@ export class PlayerService {
     });
   }
 
-  /** Playback error (unavailable video, embedding disabled): fail the item and move on. */
+  /**
+   * Playback error (unavailable video, embedding disabled): fail the item and move on.
+   *
+   * Moving on is only safe while the failures are isolated. Once enough tracks have failed in a
+   * row without a single one reaching the speakers, the problem is the venue's setup rather than
+   * the song, and skipping further would silently throw away every request the guests made — so
+   * the player stops and waits for someone to look at it.
+   */
   async reportError(
     venueId: string,
     input: { sessionId: string; queueItemId: string },
@@ -121,6 +129,12 @@ export class PlayerService {
         return;
       }
       await this.queue.finishCurrent(uow, venueId, now, 'FAILED');
+
+      const consecutiveFailures = await uow.queue.countFailuresSinceLastPlayback(venueId);
+      if (shouldHaltPlayback(consecutiveFailures)) {
+        await this.queue.halt(uow, venueId);
+        return;
+      }
       await this.queue.advance(uow, venueId, now);
     });
   }

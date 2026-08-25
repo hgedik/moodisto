@@ -239,6 +239,16 @@ export default function VenuePlayerPage() {
             <p className="text-xs text-muted">İsteyen: {state.current.tableLabel}</p>
           ) : null}
         </Card>
+      ) : state.state === PlaybackState.ERROR ? (
+        <Card className="space-y-4">
+          <EmptyState
+            title="Oynatma durduruldu"
+            hint="Üst üste birkaç parça çalınamadı. Sıra olduğu gibi duruyor: internet bağlantısını ve ses çıkışını kontrol ettikten sonra tekrar dene."
+          />
+          <Button className="w-full" onClick={() => void guard(() => playerApi.resume(sessionId))}>
+            Tekrar dene
+          </Button>
+        </Card>
       ) : (
         <Card>
           <EmptyState
