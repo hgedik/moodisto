@@ -1,4 +1,4 @@
-import { PaymentStatus, RequestStatus } from '@moodisto/shared-types';
+import { PaymentStatus, type RequestStatus } from '@moodisto/shared-types';
 import type {
   StatsRepository,
   TopRequestRecord,
@@ -6,13 +6,6 @@ import type {
 } from '../../application/ports';
 import { toTrackRecord } from '../mappers';
 import type { PrismaTx } from '../prisma-types';
-
-const COMPLETED_LIKE = [
-  RequestStatus.ACCEPTED,
-  RequestStatus.QUEUED,
-  RequestStatus.PLAYING,
-  RequestStatus.COMPLETED,
-] as const;
 
 export class PrismaStatsRepository implements StatsRepository {
   constructor(private readonly tx: PrismaTx) {}
@@ -28,8 +21,12 @@ export class PrismaStatsRepository implements StatsRepository {
     const [totalRequests, acceptedRequests, rejectedRequests, revenue, waits, hourly] =
       await Promise.all([
         this.tx.songRequest.count({ where: window }),
-        this.tx.songRequest.count({ where: { ...window, status: { in: [...COMPLETED_LIKE] } } }),
-        this.tx.songRequest.count({ where: { ...window, status: RequestStatus.REJECTED } }),
+        // Approving and rejecting are decisions the venue made at a point in time, not statuses a
+        // request still happens to be in. Counting by status would drop an approved song the
+        // moment playback failed, and would credit today's counter to the day the request
+        // arrived rather than the day the venue answered it.
+        this.tx.songRequest.count({ where: { venueId, acceptedAt: { gte: from, lte: to } } }),
+        this.tx.songRequest.count({ where: { venueId, rejectedAt: { gte: from, lte: to } } }),
         this.tx.payment.aggregate({
           where: {
             status: PaymentStatus.PAID,
