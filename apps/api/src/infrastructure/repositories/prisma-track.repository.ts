@@ -1,3 +1,4 @@
+import { buildTrackSearchText } from '@moodisto/queue-engine';
 import type { MusicProviderId } from '@moodisto/shared-types';
 import type { TrackRecord, TrackRepository, TrackUpsertInput } from '../../application/ports';
 import { toTrackRecord } from '../mappers';
@@ -9,6 +10,9 @@ export class PrismaTrackRepository implements TrackRepository {
   /**
    * Search results are persisted so that creating a request only needs `(provider, trackId)`.
    * The browser therefore never dictates track metadata, and no extra provider quota is spent.
+   *
+   * The search text is rebuilt on every write rather than only on insert, so tracks stored before
+   * the folding rule last changed catch up the next time anything touches them.
    */
   async upsertMany(tracks: readonly TrackUpsertInput[]): Promise<readonly TrackRecord[]> {
     const rows = [];
@@ -20,6 +24,7 @@ export class PrismaTrackRepository implements TrackRepository {
         channelId: track.channelId,
         thumbnailUrl: track.thumbnailUrl,
         durationSeconds: track.durationSeconds,
+        searchText: buildTrackSearchText(track),
       };
       rows.push(
         await this.tx.track.upsert({

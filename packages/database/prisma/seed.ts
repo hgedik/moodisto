@@ -6,6 +6,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import argon2 from 'argon2';
+import { buildTrackSearchText } from '@moodisto/queue-engine';
 import { $Enums, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -174,7 +175,9 @@ async function main(): Promise<void> {
             providerTrackId: track.providerTrackId,
           },
         },
-        update: {},
+        // Seeded tracks are searched from the local catalogue like any other, so they need the
+        // same folded search text a provider search would have written.
+        update: { searchText: buildTrackSearchText(track) },
         create: {
           provider: $Enums.MusicProvider.YOUTUBE,
           providerTrackId: track.providerTrackId,
@@ -184,6 +187,7 @@ async function main(): Promise<void> {
           channelId: track.channelId,
           durationSeconds: track.durationSeconds,
           thumbnailUrl: null,
+          searchText: buildTrackSearchText(track),
           metadata: { seeded: true },
         },
       }),

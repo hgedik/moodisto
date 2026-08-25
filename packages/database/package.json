@@ -24,6 +24,7 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
+    "@moodisto/queue-engine": "workspace:*",
     "@moodisto/shared-types": "workspace:*",
     "@prisma/client": "^6.7.0"
   },

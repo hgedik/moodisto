@@ -16,3 +16,23 @@ export const MAX_CONSECUTIVE_PLAYBACK_FAILURES = 3;
 export function shouldHaltPlayback(consecutiveFailures: number): boolean {
   return consecutiveFailures >= MAX_CONSECUTIVE_PLAYBACK_FAILURES;
 }
+
+/**
+ * Failure codes the provider itself reports about the track, rather than about this venue's setup.
+ */
+const PERMANENT_PLAYBACK_FAILURE_CODES: ReadonlySet<string> = new Set([
+  'EMBED_NOT_ALLOWED',
+  'VIDEO_UNAVAILABLE',
+]);
+
+/**
+ * Whether a playback failure says something about the track everywhere, or only here.
+ *
+ * The track catalogue is shared between venues, so only a provider's own verdict on the track — it
+ * cannot be embedded, it no longer exists — may take that track away from everyone. A blocked
+ * network or a timed-out player is this venue's problem and must never shrink another venue's
+ * catalogue.
+ */
+export function isPermanentPlaybackFailure(code: string): boolean {
+  return PERMANENT_PLAYBACK_FAILURE_CODES.has(code);
+}

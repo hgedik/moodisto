@@ -172,6 +172,8 @@ model CustomerSession {
 }
 
 /// A playable track, identified only by provider + provider track id.
+/// Every track a search has ever returned, kept for good: the local catalogue is searched before
+/// the provider is, so a track seen once never costs provider quota again.
 model Track {
   id              String        @id @default(cuid())
   provider        MusicProvider
@@ -183,6 +185,13 @@ model Track {
   thumbnailUrl    String?
   durationSeconds Int?
   metadata        Json          @default("{}")
+  /// Diacritic-folded title, artist and channel, searched with trigram similarity.
+  searchText      String        @default("")
+  /// Last time this track played through to the end somewhere; ranks proven tracks first.
+  lastPlayedOkAt  DateTime?
+  /// Set only when the provider itself refused the track (not embeddable, gone). Venue-side
+  /// failures never land here, because the catalogue is shared between venues.
+  playbackBlockedAt DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -190,6 +199,7 @@ model Track {
   playerStates PlayerState[]
 
   @@unique([provider, providerTrackId])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
   @@map("tracks")
 }
 

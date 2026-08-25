@@ -202,6 +202,9 @@ importers:
 
   packages/database:
     dependencies:
+      '@moodisto/queue-engine':
+        specifier: workspace:*
+        version: link:../queue-engine
       '@moodisto/shared-types':
         specifier: workspace:*
         version: link:../shared-types
