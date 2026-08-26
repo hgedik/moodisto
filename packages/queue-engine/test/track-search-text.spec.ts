@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildTrackSearchText,
-  tokenizeCatalogueQuery,
-} from '../src/catalogue/track-search-text';
+import { buildTrackSearchText, tokenizeCatalogueQuery } from '../src/catalogue/track-search-text';
 
 describe('buildTrackSearchText', () => {
   it('joins the fields a guest is likely to type', () => {

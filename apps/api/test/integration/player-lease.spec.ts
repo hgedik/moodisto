@@ -143,7 +143,9 @@ describe('player lease and playback', () => {
     await queueSongs(MAX_CONSECUTIVE_PLAYBACK_FAILURES + 2);
     const sessionId = 'player-tab-cascade';
 
-    let state = await admin.post('/api/venue/player/start', { sessionId, takeover: true }).expect(201);
+    let state = await admin
+      .post('/api/venue/player/start', { sessionId, takeover: true })
+      .expect(201);
 
     for (let attempt = 0; attempt < MAX_CONSECUTIVE_PLAYBACK_FAILURES; attempt += 1) {
       state = await admin
@@ -172,7 +174,9 @@ describe('player lease and playback', () => {
     await queueSongs(MAX_CONSECUTIVE_PLAYBACK_FAILURES + 2);
     const sessionId = 'player-tab-recovered';
 
-    let state = await admin.post('/api/venue/player/start', { sessionId, takeover: true }).expect(201);
+    let state = await admin
+      .post('/api/venue/player/start', { sessionId, takeover: true })
+      .expect(201);
 
     for (let attempt = 0; attempt < MAX_CONSECUTIVE_PLAYBACK_FAILURES - 1; attempt += 1) {
       state = await admin
@@ -206,7 +210,9 @@ describe('player lease and playback', () => {
     await queueSongs(MAX_CONSECUTIVE_PLAYBACK_FAILURES + 1);
     const sessionId = 'player-tab-retry';
 
-    let state = await admin.post('/api/venue/player/start', { sessionId, takeover: true }).expect(201);
+    let state = await admin
+      .post('/api/venue/player/start', { sessionId, takeover: true })
+      .expect(201);
     for (let attempt = 0; attempt < MAX_CONSECUTIVE_PLAYBACK_FAILURES; attempt += 1) {
       state = await admin
         .post('/api/venue/player/error', {

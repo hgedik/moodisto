@@ -111,5 +111,4 @@ export class ProviderQuotaService {
       reserveUnits: PROVIDER_QUOTA_REQUEST_RESERVE_UNITS,
     };
   }
-
 }

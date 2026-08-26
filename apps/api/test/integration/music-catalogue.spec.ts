@@ -97,8 +97,9 @@ describe('catalogue search', () => {
     const response = await catalogue('tarkan');
 
     expect(response.body.source).toBe('catalogue');
-    expect(response.body.results.map((result: { providerTrackId: string }) => result.providerTrackId))
-      .toContain('fake-dudu');
+    expect(
+      response.body.results.map((result: { providerTrackId: string }) => result.providerTrackId),
+    ).toContain('fake-dudu');
     // A provider search always leaves a cache row behind. One row means only the warm-up ran.
     expect(await harness.prisma.musicSearchCache.count()).toBe(1);
   });
@@ -109,8 +110,9 @@ describe('catalogue search', () => {
 
     const response = await catalogue('dudu tarkan');
 
-    expect(response.body.results.map((result: { providerTrackId: string }) => result.providerTrackId))
-      .toEqual(['fake-dudu']);
+    expect(
+      response.body.results.map((result: { providerTrackId: string }) => result.providerTrackId),
+    ).toEqual(['fake-dudu']);
     expect(await harness.prisma.musicSearchCache.count()).toBe(1);
   });
 
@@ -119,8 +121,9 @@ describe('catalogue search', () => {
 
     const response = await catalogue('yasl');
 
-    expect(response.body.results.map((result: { providerTrackId: string }) => result.providerTrackId))
-      .toContain('fake-yaslanmadan');
+    expect(
+      response.body.results.map((result: { providerTrackId: string }) => result.providerTrackId),
+    ).toContain('fake-yaslanmadan');
   });
 
   it('finds a track whose diacritics the guest did not type', async () => {
@@ -128,8 +131,9 @@ describe('catalogue search', () => {
 
     const response = await catalogue('boyleyim');
 
-    expect(response.body.results.map((result: { providerTrackId: string }) => result.providerTrackId))
-      .toContain('fake-ben-boyleyim');
+    expect(
+      response.body.results.map((result: { providerTrackId: string }) => result.providerTrackId),
+    ).toContain('fake-ben-boyleyim');
   });
 
   it('stays empty on a cold catalogue instead of reaching for the provider', async () => {
@@ -192,7 +196,9 @@ describe('catalogue playability feedback', () => {
   const SESSION_ID = 'player-tab-catalogue';
 
   /** Warms the catalogue, then puts the requested track on the speakers of this venue. */
-  const playTrack = async (providerTrackId: string): Promise<{ trackId: string; itemId: string }> => {
+  const playTrack = async (
+    providerTrackId: string,
+  ): Promise<{ trackId: string; itemId: string }> => {
     await guest.get('/api/music/provider-search?q=tarkan').expect(200);
     const track = await harness.prisma.track.findFirstOrThrow({ where: { providerTrackId } });
     const [requestId] = await createPendingRequests(harness.prisma, venue.venueId, [track.id]);
@@ -205,7 +211,9 @@ describe('catalogue playability feedback', () => {
 
   const catalogueIds = async (query: string): Promise<string[]> => {
     const response = await guest.get(`/api/music/search?q=${query}`).expect(200);
-    return response.body.results.map((result: { providerTrackId: string }) => result.providerTrackId);
+    return response.body.results.map(
+      (result: { providerTrackId: string }) => result.providerTrackId,
+    );
   };
 
   beforeAll(async () => {
