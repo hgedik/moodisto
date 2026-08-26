@@ -7,6 +7,8 @@ import type {
   QueueRepository,
   SongRequestRepository,
   StatsRepository,
+  SystemSettingRepository,
+  SystemUserRepository,
   TrackRepository,
   VenueQrCodeRepository,
   VenueRepository,
@@ -31,6 +33,8 @@ export interface UnitOfWork {
   readonly blockedRules: BlockedRuleRepository;
   readonly providerQuota: ProviderQuotaRepository;
   readonly stats: StatsRepository;
+  readonly systemUsers: SystemUserRepository;
+  readonly systemSettings: SystemSettingRepository;
   /**
    * Buffers a realtime message. Messages are dispatched only after the transaction commits, so
    * clients can never observe an event for a change that was rolled back.

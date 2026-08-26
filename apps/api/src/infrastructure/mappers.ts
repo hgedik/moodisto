@@ -1,4 +1,12 @@
-import type { Prisma, Track, Venue, VenueQrCode, VenueUser } from '@moodisto/database';
+import type {
+  Prisma,
+  SystemSetting,
+  SystemUser,
+  Track,
+  Venue,
+  VenueQrCode,
+  VenueUser,
+} from '@moodisto/database';
 import type {
   BlockedRuleType,
   MusicProviderId,
@@ -17,6 +25,8 @@ import type {
   PlayerStateRecord,
   QueueEntryRecord,
   SongRequestRecord,
+  SystemSettingRecord,
+  SystemUserRecord,
   TrackRecord,
   VenuePricingRecord,
   VenueQrCodeRecord,
@@ -234,4 +244,21 @@ export const toVenuePricingRecord = (row: {
   djPriceMinor: row.djPriceMinor,
   playNextEnabled: row.playNextEnabled,
   playNextPriceMinor: row.playNextPriceMinor,
+});
+
+export const toSystemUserRecord = (row: SystemUser): SystemUserRecord => ({
+  id: row.id,
+  email: row.email,
+  name: row.name,
+  passwordHash: row.passwordHash,
+  active: row.active,
+});
+
+export const toSystemSettingRecord = (row: SystemSetting): SystemSettingRecord => ({
+  key: row.key,
+  valueText: row.valueText,
+  valueCipher: row.valueCipher,
+  secret: row.secret,
+  updatedById: row.updatedById,
+  updatedAt: row.updatedAt,
 });

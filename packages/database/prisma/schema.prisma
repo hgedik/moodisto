@@ -352,3 +352,35 @@ model BlockedMusicRule {
   @@index([venueId])
   @@map("blocked_music_rules")
 }
+
+/// The operator of the installation itself, not of any venue: it owns no venue and joins no
+/// queue, it only maintains the integration settings below.
+model SystemUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  settings SystemSetting[]
+
+  @@map("system_users")
+}
+
+/// Settings that must be changeable without a deploy. Secret values live only in `valueCipher`,
+/// encrypted at rest; a missing row means the environment variable still decides.
+model SystemSetting {
+  key         String   @id
+  valueText   String?
+  valueCipher String?
+  secret      Boolean  @default(false)
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  updatedBy SystemUser? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("system_settings")
+}

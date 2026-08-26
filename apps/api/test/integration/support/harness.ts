@@ -25,6 +25,8 @@ export interface Client {
 }
 
 const TRUNCATED_TABLES = [
+  'system_settings',
+  'system_users',
   'payments',
   'queue_items',
   'song_requests',

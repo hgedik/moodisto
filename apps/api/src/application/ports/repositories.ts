@@ -20,6 +20,9 @@ import type {
   QueuePositionAssignment,
   SongRequestRecord,
   SongRequestStatusChange,
+  SystemSettingRecord,
+  SystemSettingWriteInput,
+  SystemUserRecord,
   TopRequestRecord,
   TrackRecord,
   TrackUpsertInput,
@@ -233,4 +236,18 @@ export interface StatsRepository {
     limit: number;
     statuses?: readonly RequestStatus[];
   }): Promise<readonly TopRequestRecord[]>;
+}
+
+export interface SystemUserRepository {
+  findByEmail(email: string): Promise<SystemUserRecord | null>;
+  findById(userId: string): Promise<SystemUserRecord | null>;
+  markLoggedIn(userId: string, at: Date): Promise<void>;
+}
+
+export interface SystemSettingRepository {
+  findAll(): Promise<readonly SystemSettingRecord[]>;
+  /** Writes every entry, replacing whatever was stored under the same key. */
+  save(entries: readonly SystemSettingWriteInput[], updatedById: string | null): Promise<void>;
+  /** Drops the rows so the environment fallback decides again. */
+  remove(keys: readonly string[]): Promise<void>;
 }

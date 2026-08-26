@@ -251,3 +251,27 @@ export interface AdminRequestFilter {
   readonly take: number;
   readonly skip: number;
 }
+
+export interface SystemUserRecord {
+  readonly id: string;
+  readonly email: string;
+  readonly name: string;
+  readonly passwordHash: string;
+  readonly active: boolean;
+}
+
+export interface SystemSettingRecord {
+  readonly key: string;
+  readonly valueText: string | null;
+  readonly valueCipher: string | null;
+  readonly secret: boolean;
+  readonly updatedById: string | null;
+  readonly updatedAt: Date;
+}
+
+export interface SystemSettingWriteInput {
+  readonly key: string;
+  readonly valueText: string | null;
+  readonly valueCipher: string | null;
+  readonly secret: boolean;
+}

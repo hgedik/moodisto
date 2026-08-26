@@ -7,6 +7,8 @@ import { PrismaProviderQuotaRepository } from './repositories/prisma-provider-qu
 import { PrismaQueueRepository } from './repositories/prisma-queue.repository';
 import { PrismaSongRequestRepository } from './repositories/prisma-song-request.repository';
 import { PrismaStatsRepository } from './repositories/prisma-stats.repository';
+import { PrismaSystemSettingRepository } from './repositories/prisma-system-setting.repository';
+import { PrismaSystemUserRepository } from './repositories/prisma-system-user.repository';
 import { PrismaTrackRepository } from './repositories/prisma-track.repository';
 import { PrismaVenueQrCodeRepository } from './repositories/prisma-venue-qr-code.repository';
 import { PrismaVenueRepository } from './repositories/prisma-venue.repository';
@@ -26,6 +28,8 @@ export class PrismaUnitOfWork implements UnitOfWork {
   readonly blockedRules: PrismaBlockedRuleRepository;
   readonly providerQuota: PrismaProviderQuotaRepository;
   readonly stats: PrismaStatsRepository;
+  readonly systemUsers: PrismaSystemUserRepository;
+  readonly systemSettings: PrismaSystemSettingRepository;
 
   private readonly buffered: RealtimeMessage[] = [];
 
@@ -42,6 +46,8 @@ export class PrismaUnitOfWork implements UnitOfWork {
     this.blockedRules = new PrismaBlockedRuleRepository(tx);
     this.providerQuota = new PrismaProviderQuotaRepository(tx);
     this.stats = new PrismaStatsRepository(tx);
+    this.systemUsers = new PrismaSystemUserRepository(tx);
+    this.systemSettings = new PrismaSystemSettingRepository(tx);
   }
 
   publish(message: RealtimeMessage): void {
