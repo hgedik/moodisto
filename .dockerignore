@@ -1,0 +1,59 @@
+# ---------------------------------------------------------------------------
+# Build context
+# ---------------------------------------------------------------------------
+# The first block is a security decision as much as a size one: env files and
+# keys never enter the context, so no image layer can carry a secret.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Dependencies and build output are produced inside the image. A node_modules
+# tree copied from the host would break pnpm's symlink layout and ship native
+# builds (argon2, the Prisma engine) for the wrong platform.
+node_modules
+**/node_modules
+.pnpm-store
+.next
+**/.next
+dist
+**/dist
+build
+**/build
+out
+**/out
+*.tsbuildinfo
+**/*.tsbuildinfo
+**/next-env.d.ts
+packages/database/generated
+
+# Test and tooling output
+coverage
+**/coverage
+test-results
+**/test-results
+playwright-report
+**/playwright-report
+blob-report
+**/blob-report
+playwright/.cache
+.playwright
+
+# Repository and editor files
+.git
+.github
+.gitignore
+.claude
+.idea
+.vscode
+.DS_Store
+*.log
+**/*.log
+tmp
+
+# Content the images have no use for
+docs
+README.md
+docker-compose.yml

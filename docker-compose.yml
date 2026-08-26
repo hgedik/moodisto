@@ -1,3 +1,36 @@
+# ---------------------------------------------------------------------------
+# Moodisto local stack
+# ---------------------------------------------------------------------------
+# Two ways to use this file, and they stay out of each other's way:
+#
+#   docker compose up -d                  → PostgreSQL only. The app runs on
+#                                           the host with `pnpm dev`, which is
+#                                           the setup the unit, integration and
+#                                           Playwright suites expect.
+#   docker compose --profile app up -d --build
+#                                         → migrations, API and web, all in
+#                                           containers. For running the product
+#                                           without setting up a toolchain.
+#
+# The application services sit behind the `app` profile, so a plain `up` does
+# not even create them and the development workflow is untouched.
+name: moodisto
+
+# The API image does three jobs: serve the API, apply migrations and run the
+# seed. All three want the same built tree, so the image is declared once and
+# shared.
+x-api-image: &api-image
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+    target: api
+  image: moodisto-api:local
+
+# Inside the container network the database answers as `postgres` on its own
+# 5432; the port published to the host (5433 by default) is a separate matter.
+x-database-url: &database-url
+  DATABASE_URL: postgresql://moodisto:moodisto@postgres:5432/moodisto?schema=public
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,6 +50,90 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+
+  # The schema is brought up to date before the API opens. This is a one-shot
+  # job, and finishing successfully is the API's start condition: an API bound
+  # to an outdated schema should not start at all rather than misbehave quietly.
+  migrate:
+    <<: *api-image
+    profiles: ['app']
+    restart: 'no'
+    environment:
+      <<: *database-url
+    command: ['pnpm', '--filter', '@moodisto/database', 'exec', 'prisma', 'migrate', 'deploy']
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Demo data has a profile of its own, so `up` does not reseed on every start.
+  #   docker compose --profile seed run --rm seed
+  seed:
+    <<: *api-image
+    profiles: ['seed']
+    restart: 'no'
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: *database-url
+    command: ['pnpm', '--filter', '@moodisto/database', 'exec', 'tsx', 'prisma/seed.ts']
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *api-image
+    profiles: ['app']
+    container_name: moodisto-api
+    restart: unless-stopped
+    # pnpm and node run as PID 1, so an init process takes over signals and
+    # reaps orphans.
+    init: true
+    # Secrets stay out of the image and are read at run time. With no .env the
+    # service still starts, and the API's own config validation names what is
+    # missing.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: *database-url
+      # production marks the auth cookies Secure, and a Secure cookie does not
+      # travel over plain http. This stays development until there is TLS in
+      # front of it.
+      NODE_ENV: ${NODE_ENV:-development}
+      API_PORT: 3001
+      # What the browser sees: published ports, not the container network.
+      API_URL: http://localhost:${API_PORT:-3001}
+      APP_URL: http://localhost:${WEB_PORT:-3000}
+      CORS_ORIGINS: http://localhost:${WEB_PORT:-3000}
+    ports:
+      - '${API_PORT:-3001}:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    profiles: ['app']
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: web
+      # Next.js inlines these into the bundle at build time: the web image
+      # belongs to one environment, and another host name needs another build.
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:${API_PORT:-3001}}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:${WEB_PORT:-3000}}
+    image: moodisto-web:local
+    container_name: moodisto-web
+    restart: unless-stopped
+    init: true
+    ports:
+      - '${WEB_PORT:-3000}:3000'
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
   moodisto-postgres-data:
