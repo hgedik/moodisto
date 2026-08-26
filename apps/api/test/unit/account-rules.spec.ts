@@ -3,6 +3,7 @@ import { VenueUserRole } from '@moodisto/shared-types';
 import type { SystemUserRecord, VenueUserRecord } from '../../src/application/ports';
 import {
   assertLastOperatorStaysActive,
+  normalizeAccountEmail,
   assertOperatorNotLockingSelfOut,
   assertVenueKeepsAnOwner,
 } from '../../src/system/account-rules';
@@ -108,5 +109,11 @@ describe('assertLastOperatorStaysActive', () => {
     const operators = [operator({ id: 'first' }), operator({ id: 'retired', active: false })];
 
     expect(() => assertLastOperatorStaysActive(operators, 'first')).toThrow(UnprocessableError);
+  });
+});
+
+describe('normalizeAccountEmail', () => {
+  it('stores an address the way sign-in will look it up', () => {
+    expect(normalizeAccountEmail('  Deniz@Yeni-Kafe.TEST ')).toBe('deniz@yeni-kafe.test');
   });
 });

@@ -21,7 +21,12 @@ import {
   type Database,
   type TokenGenerator,
 } from '../application/ports';
-import { toBlockedRuleDto, toSongRequestDto, toVenuePricingDto } from '../application/dto-mappers';
+import {
+  toBlockedRuleDto,
+  toQrCodeDto,
+  toSongRequestDto,
+  toVenuePricingDto,
+} from '../application/dto-mappers';
 import { BadRequestError, NotFoundError } from '../common/errors';
 import { VenueLookupService } from '../venues/venue-lookup.service';
 
@@ -135,14 +140,7 @@ export class VenueAdminService {
 
   async listQrCodes(venueId: string, appUrl: string): Promise<readonly QrCodeDto[]> {
     const codes = await this.database.read().qrCodes.listByVenue(venueId);
-    return codes.map((code) => ({
-      id: code.id,
-      token: code.token,
-      tableLabel: code.tableLabel,
-      active: code.active,
-      joinUrl: `${appUrl}/join/${code.token}`,
-      createdAt: code.createdAt.toISOString(),
-    }));
+    return codes.map((code) => toQrCodeDto(code, appUrl));
   }
 
   async createQrCode(
@@ -158,14 +156,7 @@ export class VenueAdminService {
         expiresAt: null,
       }),
     );
-    return {
-      id: code.id,
-      token: code.token,
-      tableLabel: code.tableLabel,
-      active: code.active,
-      joinUrl: `${appUrl}/join/${code.token}`,
-      createdAt: code.createdAt.toISOString(),
-    };
+    return toQrCodeDto(code, appUrl);
   }
 
   async deactivateQrCode(venueId: string, qrCodeId: string): Promise<void> {

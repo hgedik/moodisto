@@ -5,6 +5,7 @@ import type {
   PlayerStateDto,
   QueueEntryDto,
   RequestTypeOptionDto,
+  QrCodeDto,
   SongRequestDto,
   SystemUserDto,
   SystemVenueDto,
@@ -23,6 +24,7 @@ import type {
   QueueEntryRecord,
   SongRequestRecord,
   SystemUserRecord,
+  VenueQrCodeRecord,
   TopRequestRecord,
   TrackRecord,
   VenueListRecord,
@@ -196,4 +198,14 @@ export const toSystemUserDto = (user: SystemUserRecord): SystemUserDto => ({
   active: user.active,
   lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
   createdAt: user.createdAt.toISOString(),
+});
+
+/** The join link is built here so every printed code, wherever it is created, encodes the same address. */
+export const toQrCodeDto = (code: VenueQrCodeRecord, appUrl: string): QrCodeDto => ({
+  id: code.id,
+  token: code.token,
+  tableLabel: code.tableLabel,
+  active: code.active,
+  joinUrl: `${appUrl}/join/${code.token}`,
+  createdAt: code.createdAt.toISOString(),
 });

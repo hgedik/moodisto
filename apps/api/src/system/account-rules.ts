@@ -9,6 +9,12 @@ export interface AccountChange {
   readonly active: boolean;
 }
 
+/**
+ * The single spelling an account is stored and looked up under. Sign-in lowercases what is typed,
+ * so an address saved with capitals would belong to somebody who could never reach it.
+ */
+export const normalizeAccountEmail = (email: string): string => email.trim().toLowerCase();
+
 const isActiveOwner = (user: VenueUserRecord): boolean =>
   user.active && user.role === VenueUserRole.OWNER;
 
