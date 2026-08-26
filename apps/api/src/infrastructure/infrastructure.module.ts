@@ -1,5 +1,14 @@
 import { Global, Module } from '@nestjs/common';
-import { CLOCK, PASSWORD_HASHER, RATE_LIMITER, TOKEN_GENERATOR } from '../application/ports';
+import {
+  CLOCK,
+  PASSWORD_HASHER,
+  RATE_LIMITER,
+  SECRET_CIPHER,
+  TOKEN_GENERATOR,
+} from '../application/ports';
+import { APP_CONFIG } from '../config/config.module';
+import type { AppConfig } from '../config/app-config';
+import { AesSecretCipher } from './services/aes-secret-cipher';
 import { Argon2PasswordHasher } from './services/argon2-password-hasher';
 import { CryptoTokenGenerator } from './services/crypto-token-generator';
 import { InMemoryRateLimiter } from './services/in-memory-rate-limiter';
@@ -16,7 +25,12 @@ import { SystemClock } from './services/system-clock';
     { provide: TOKEN_GENERATOR, useClass: CryptoTokenGenerator },
     { provide: PASSWORD_HASHER, useClass: Argon2PasswordHasher },
     { provide: RATE_LIMITER, useClass: InMemoryRateLimiter },
+    {
+      provide: SECRET_CIPHER,
+      inject: [APP_CONFIG],
+      useFactory: (config: AppConfig) => new AesSecretCipher(config.settingsEncryptionKey),
+    },
   ],
-  exports: [CLOCK, TOKEN_GENERATOR, PASSWORD_HASHER, RATE_LIMITER],
+  exports: [CLOCK, TOKEN_GENERATOR, PASSWORD_HASHER, RATE_LIMITER, SECRET_CIPHER],
 })
 export class InfrastructureModule {}

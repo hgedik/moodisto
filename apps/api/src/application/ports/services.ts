@@ -61,3 +61,15 @@ export interface PaymentProvider {
   handleWebhook(rawBody: string, headers: Record<string, string | undefined>): PaymentWebhookResult;
 }
 export const PAYMENT_PROVIDER = Symbol('PAYMENT_PROVIDER');
+
+/**
+ * Encrypts the credentials the operator stores in the database.
+ *
+ * The key itself can never live next to the ciphertext, so it stays in the environment: a
+ * database dump alone must not be enough to read a payment secret.
+ */
+export interface SecretCipher {
+  encrypt(plain: string): string;
+  decrypt(cipherText: string): string;
+}
+export const SECRET_CIPHER = Symbol('SECRET_CIPHER');

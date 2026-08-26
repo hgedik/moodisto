@@ -10,6 +10,7 @@ export const testAppConfig = (overrides: Partial<AppConfig> = {}): AppConfig => 
   corsOrigins: ['http://localhost:3000'],
   databaseUrl: 'postgresql://moodisto:moodisto@localhost:5433/moodisto_test?schema=public',
   cookieSecret: 'test-cookie-secret-at-least-16',
+  settingsEncryptionKey: 'test-settings-encryption-key-32ch',
   jwt: {
     secret: 'test-jwt-secret-at-least-16-chars',
     accessTtlSeconds: 900,

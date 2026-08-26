@@ -28,6 +28,7 @@ const environmentSchema = z.object({
   JWT_SECRET: z.string().min(16),
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   JWT_REFRESH_TTL_SECONDS: z.coerce.number().int().positive().default(2_592_000),
+  SETTINGS_ENCRYPTION_KEY: z.string().min(32).optional(),
 
   MUSIC_PROVIDER: z.literal('YOUTUBE').default('YOUTUBE'),
   MUSIC_PROVIDER_FAKE: booleanFromEnv.default(false),
@@ -57,6 +58,8 @@ export interface AppConfig {
   readonly corsOrigins: readonly string[];
   readonly databaseUrl: string;
   readonly cookieSecret: string;
+  /** Encrypts the credentials stored in `system_settings`; never derived from them. */
+  readonly settingsEncryptionKey: string;
   readonly jwt: {
     readonly secret: string;
     readonly accessTtlSeconds: number;
@@ -111,6 +114,11 @@ export function loadAppConfig(source: NodeJS.ProcessEnv = process.env): AppConfi
       'PAYMENT_PROVIDER: the mock provider cannot serve paid requests in production',
     ]);
   }
+  if (isProduction && env.SETTINGS_ENCRYPTION_KEY === undefined) {
+    throw new InvalidConfigurationError([
+      'SETTINGS_ENCRYPTION_KEY: required in production to encrypt stored credentials',
+    ]);
+  }
 
   return {
     nodeEnv: env.NODE_ENV,
@@ -121,6 +129,9 @@ export function loadAppConfig(source: NodeJS.ProcessEnv = process.env): AppConfi
     corsOrigins: Object.freeze([...env.CORS_ORIGINS]),
     databaseUrl: env.DATABASE_URL,
     cookieSecret: env.COOKIE_SECRET,
+    // Outside production a missing key must not stop the app; it is derived from the signing
+    // secret instead, which keeps developer databases readable only by that same checkout.
+    settingsEncryptionKey: env.SETTINGS_ENCRYPTION_KEY ?? `${env.JWT_SECRET}:system-settings`,
     jwt: {
       secret: env.JWT_SECRET,
       accessTtlSeconds: env.JWT_ACCESS_TTL_SECONDS,
