@@ -225,6 +225,39 @@ export interface VenueStatsDto {
   readonly requestsByHour: readonly { readonly hour: number; readonly count: number }[];
 }
 
+/** The operator of the installation itself; it belongs to no venue. */
+export interface AuthenticatedSystemUserDto {
+  readonly id: string;
+  readonly email: string;
+  readonly name: string;
+}
+
+/** Which of the three places the effective value came from. */
+export type SystemSettingSource = 'database' | 'environment' | 'default';
+
+/**
+ * One row of the system settings panel.
+ *
+ * A secret never travels here in plain text: the panel learns only that a value exists and what
+ * its last few characters are, which is enough to tell two keys apart and nothing more.
+ */
+export interface SystemSettingDto {
+  readonly key: string;
+  readonly group: 'music' | 'payment' | 'features';
+  readonly kind: 'string' | 'boolean' | 'enum';
+  readonly secret: boolean;
+  readonly source: SystemSettingSource;
+  readonly value: string | boolean | null;
+  readonly hasValue: boolean;
+  readonly preview: string | null;
+  readonly enumValues: readonly string[] | null;
+  readonly updatedAt: string | null;
+}
+
+export interface SystemSettingsResponse {
+  readonly settings: readonly SystemSettingDto[];
+}
+
 export interface PaginatedResponse<T> {
   readonly items: readonly T[];
   readonly total: number;

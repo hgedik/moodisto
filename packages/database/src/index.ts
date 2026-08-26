@@ -8,6 +8,8 @@ export type {
   PlayerState,
   QueueItem,
   SongRequest,
+  SystemSetting,
+  SystemUser,
   Track,
   Venue,
   VenueQrCode,

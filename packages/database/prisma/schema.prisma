@@ -73,19 +73,19 @@ enum VenueUserRole {
 }
 
 model Venue {
-  id                        String   @id @default(cuid())
-  slug                      String   @unique
-  name                      String
-  description               String?
-  address                   String?
-  latitude                  Float?
-  longitude                 Float?
-  timezone                  String   @default("Europe/Istanbul")
-  logoUrl                   String?
-  active                    Boolean  @default(true)
-  duplicateCooldownMinutes  Int      @default(30)
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  id                       String   @id @default(cuid())
+  slug                     String   @unique
+  name                     String
+  description              String?
+  address                  String?
+  latitude                 Float?
+  longitude                Float?
+  timezone                 String   @default("Europe/Istanbul")
+  logoUrl                  String?
+  active                   Boolean  @default(true)
+  duplicateCooldownMinutes Int      @default(30)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
   users            VenueUser[]
   pricing          VenueRequestPricing?
@@ -121,19 +121,19 @@ model VenueUser {
 
 /// Per-venue request pricing. Money is always an integer amount of the currency's minor unit.
 model VenueRequestPricing {
-  id                String   @id @default(cuid())
-  venueId           String   @unique
-  currency          String   @default("TRY")
-  normalEnabled     Boolean  @default(true)
-  normalPriceMinor  Int      @default(0)
-  priorityEnabled   Boolean  @default(true)
-  priorityPriceMinor Int     @default(2000)
-  djEnabled         Boolean  @default(true)
-  djPriceMinor      Int      @default(3000)
-  playNextEnabled   Boolean  @default(true)
-  playNextPriceMinor Int     @default(5000)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  venueId            String   @unique
+  currency           String   @default("TRY")
+  normalEnabled      Boolean  @default(true)
+  normalPriceMinor   Int      @default(0)
+  priorityEnabled    Boolean  @default(true)
+  priorityPriceMinor Int      @default(2000)
+  djEnabled          Boolean  @default(true)
+  djPriceMinor       Int      @default(3000)
+  playNextEnabled    Boolean  @default(true)
+  playNextPriceMinor Int      @default(5000)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
 
@@ -175,25 +175,25 @@ model CustomerSession {
 /// Every track a search has ever returned, kept for good: the local catalogue is searched before
 /// the provider is, so a track seen once never costs provider quota again.
 model Track {
-  id              String        @id @default(cuid())
-  provider        MusicProvider
-  providerTrackId String
-  title           String
-  artist          String?
-  channelName     String?
-  channelId       String?
-  thumbnailUrl    String?
-  durationSeconds Int?
-  metadata        Json          @default("{}")
+  id                String        @id @default(cuid())
+  provider          MusicProvider
+  providerTrackId   String
+  title             String
+  artist            String?
+  channelName       String?
+  channelId         String?
+  thumbnailUrl      String?
+  durationSeconds   Int?
+  metadata          Json          @default("{}")
   /// Diacritic-folded title, artist and channel, searched with trigram similarity.
-  searchText      String        @default("")
+  searchText        String        @default("")
   /// Last time this track played through to the end somewhere; ranks proven tracks first.
-  lastPlayedOkAt  DateTime?
+  lastPlayedOkAt    DateTime?
   /// Set only when the provider itself refused the track (not embeddable, gone). Venue-side
   /// failures never land here, because the catalogue is shared between venues.
   playbackBlockedAt DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
   songRequests SongRequest[]
   playerStates PlayerState[]
