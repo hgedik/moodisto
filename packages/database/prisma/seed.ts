@@ -14,6 +14,8 @@ const prisma = new PrismaClient();
 const OWNER_EMAIL = process.env.SEED_OWNER_EMAIL ?? 'admin@example.com';
 const OWNER_PASSWORD = process.env.SEED_OWNER_PASSWORD ?? 'moodisto-dev-2026';
 const DJ_EMAIL = 'dj@example.com';
+const SYSTEM_EMAIL = process.env.SEED_SYSTEM_EMAIL ?? 'system@example.com';
+const SYSTEM_PASSWORD = process.env.SEED_SYSTEM_PASSWORD ?? OWNER_PASSWORD;
 
 const qrToken = (): string => randomBytes(24).toString('base64url');
 
@@ -148,6 +150,18 @@ async function main(): Promise<void> {
       passwordHash,
       name: 'Cafe Moda DJ',
       role: $Enums.VenueUserRole.DJ,
+    },
+  });
+
+  // The operator of the installation itself. It belongs to no venue, and its console is the
+  // only place the integration keys can be entered without a deploy.
+  await prisma.systemUser.upsert({
+    where: { email: SYSTEM_EMAIL },
+    update: { passwordHash: await hashPassword(SYSTEM_PASSWORD) },
+    create: {
+      email: SYSTEM_EMAIL,
+      passwordHash: await hashPassword(SYSTEM_PASSWORD),
+      name: 'Moodisto Sistem',
     },
   });
 
@@ -338,6 +352,7 @@ async function report(): Promise<void> {
   console.info('\nSeed complete.\n');
   console.info(`  Venue admin login : ${OWNER_EMAIL} / ${OWNER_PASSWORD}`);
   console.info(`  DJ login          : ${DJ_EMAIL} / ${OWNER_PASSWORD}`);
+  console.info(`  System login      : ${SYSTEM_EMAIL} / ${SYSTEM_PASSWORD}  (/system/login)`);
   console.info('\n  QR join links:');
   for (const code of codes) {
     console.info(`    ${(code.tableLabel ?? 'Genel').padEnd(8)} ${appUrl}/join/${code.token}`);

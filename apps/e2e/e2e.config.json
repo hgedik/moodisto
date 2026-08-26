@@ -4,5 +4,7 @@
   "apiPort": 3011,
   "venueSlug": "cafe-moda",
   "ownerEmail": "e2e-owner@example.com",
-  "ownerPassword": "moodisto-e2e-2026"
+  "ownerPassword": "moodisto-e2e-2026",
+  "systemEmail": "e2e-system@example.com",
+  "systemPassword": "moodisto-e2e-system-2026"
 }

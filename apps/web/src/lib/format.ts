@@ -6,7 +6,9 @@ import {
   RequestType,
   VenueUserRole,
   type BlockedRuleType,
+  type SystemSettingSource,
 } from '@moodisto/shared-types';
+import { SettingGroup, SettingKey } from '@moodisto/validation';
 
 const money = new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' });
 
@@ -155,3 +157,56 @@ export const venueUserRoleLabel: Record<VenueUserRole, string> = {
 
 export const canEditVenue = (role: VenueUserRole): boolean =>
   role === VenueUserRole.OWNER || role === VenueUserRole.MANAGER;
+
+export const settingGroupLabel: Record<SettingGroup, string> = {
+  [SettingGroup.MUSIC]: 'Müzik sağlayıcısı',
+  [SettingGroup.PAYMENT]: 'Ödeme sağlayıcısı',
+  [SettingGroup.FEATURES]: 'Özellik anahtarları',
+};
+
+export const settingLabel: Record<SettingKey, string> = {
+  [SettingKey.MUSIC_PROVIDER_FAKE]: 'Demo müzik kataloğu',
+  [SettingKey.YOUTUBE_API_KEY]: 'YouTube API anahtarı',
+  [SettingKey.YOUTUBE_REGION_CODE]: 'Bölge kodu',
+  [SettingKey.YOUTUBE_RELEVANCE_LANGUAGE]: 'Sonuç dili',
+  [SettingKey.PAYMENT_PROVIDER]: 'Ödeme sağlayıcısı',
+  [SettingKey.PAYMENT_API_KEY]: 'Ödeme API anahtarı',
+  [SettingKey.PAYMENT_SECRET]: 'Ödeme gizli anahtarı',
+  [SettingKey.PAYMENT_BASE_URL]: 'Ödeme servis adresi',
+  [SettingKey.PAYMENT_WEBHOOK_SECRET]: 'Webhook imza anahtarı',
+  [SettingKey.ENABLE_PAID_REQUESTS]: 'Ücretli istekler',
+  [SettingKey.ENABLE_YOUTUBE_PLAYBACK]: 'Sağlayıcı üzerinden oynatma',
+  [SettingKey.RATE_LIMIT_ENABLED]: 'İstek hız sınırı',
+};
+
+export const settingHint: Record<SettingKey, string> = {
+  [SettingKey.MUSIC_PROVIDER_FAKE]:
+    'Açıkken aramalar sabit demo kataloğundan gelir, sağlayıcıya hiç istek gitmez.',
+  [SettingKey.YOUTUBE_API_KEY]:
+    'Yalnızca sunucuda kullanılır, tarayıcıya hiçbir zaman gönderilmez.',
+  [SettingKey.YOUTUBE_REGION_CODE]: 'İki harfli ülke kodu, örneğin TR.',
+  [SettingKey.YOUTUBE_RELEVANCE_LANGUAGE]: 'İki harfli dil kodu, örneğin tr.',
+  [SettingKey.PAYMENT_PROVIDER]:
+    'mock yalnızca geliştirme içindir; üretimde ücretli istekler açıkken seçilemez.',
+  [SettingKey.PAYMENT_API_KEY]: 'Sağlayıcı panelinden alınan genel anahtar.',
+  [SettingKey.PAYMENT_SECRET]: 'Sağlayıcı panelinden alınan gizli anahtar.',
+  [SettingKey.PAYMENT_BASE_URL]: 'Sağlayıcının API adresi; sandbox ve üretim farklıdır.',
+  [SettingKey.PAYMENT_WEBHOOK_SECRET]:
+    'Gelen ödeme bildirimlerinin imzası bununla doğrulanır. Değiştirmek anında geçerlidir.',
+  [SettingKey.ENABLE_PAID_REQUESTS]: 'Kapalıyken bütün istekler ücretsiz kabul edilir.',
+  [SettingKey.ENABLE_YOUTUBE_PLAYBACK]:
+    'Kapalıyken sıra olduğu gibi durur, player gömülü oynatıcıyı göstermez.',
+  [SettingKey.RATE_LIMIT_ENABLED]: 'Kapatmak yalnızca geliştirme içindir; üretimde açık bırakın.',
+};
+
+export const settingSourceLabel: Record<SystemSettingSource, string> = {
+  database: 'veritabanı',
+  environment: '.env',
+  default: 'varsayılan',
+};
+
+export const settingSourceTone: Record<SystemSettingSource, StatusTone> = {
+  database: 'brand',
+  environment: 'neutral',
+  default: 'neutral',
+};

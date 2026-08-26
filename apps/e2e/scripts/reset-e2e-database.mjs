@@ -41,6 +41,8 @@ const TABLES = [
   'venue_qr_codes',
   'venue_request_pricing',
   'venue_users',
+  'system_settings',
+  'system_users',
   'tracks',
   'venues',
 ];
@@ -65,5 +67,7 @@ run(['exec', 'tsx', 'prisma/seed.ts'], {
     DATABASE_URL: databaseUrl,
     SEED_OWNER_EMAIL: process.env.E2E_OWNER_EMAIL ?? defaults.ownerEmail,
     SEED_OWNER_PASSWORD: process.env.E2E_OWNER_PASSWORD ?? defaults.ownerPassword,
+    SEED_SYSTEM_EMAIL: process.env.E2E_SYSTEM_EMAIL ?? defaults.systemEmail,
+    SEED_SYSTEM_PASSWORD: process.env.E2E_SYSTEM_PASSWORD ?? defaults.systemPassword,
   },
 });

@@ -1,4 +1,5 @@
 import type {
+  AuthenticatedSystemUserDto,
   AuthenticatedVenueUserDto,
   BlockedRuleDto,
   CreateSongRequestResponse,
@@ -14,6 +15,7 @@ import type {
   QueueUpdatedPayload,
   SongRequestDto,
   StatsPeriod,
+  SystemSettingsResponse,
   TopRequestDto,
   TopRequestsPeriod,
   VenueDetailDto,
@@ -24,6 +26,8 @@ import type {
   CreateBlockedRuleInput,
   CreateQrCodeInput,
   CreateSongRequestInput,
+  SystemLoginInput,
+  SystemSettingsUpdate,
   UpdateVenuePricingInput,
   UpdateVenueSettingsInput,
   VenueLoginInput,
@@ -203,4 +207,24 @@ export const playerApi = {
     apiFetch<PlayerLeaseDto>('/venue/player/heartbeat', { method: 'POST', body: { sessionId } }),
   release: (sessionId: string) =>
     apiFetch<{ released: true }>('/venue/player/release', { method: 'POST', body: { sessionId } }),
+};
+
+/**
+ * The operator console.
+ *
+ * A separate cookie backs these calls, so signing in here says nothing about any venue session
+ * and signing out of a venue says nothing about this one.
+ */
+export const systemAuthApi = {
+  login: (body: SystemLoginInput) =>
+    apiFetch<AuthenticatedSystemUserDto>('/auth/system/login', { method: 'POST', body }),
+  logout: () => apiFetch<{ ok: true }>('/auth/system/logout', { method: 'POST' }),
+  me: (signal?: AbortSignal) => apiFetch<AuthenticatedSystemUserDto>('/auth/system/me', { signal }),
+};
+
+export const systemApi = {
+  settings: (signal?: AbortSignal) =>
+    apiFetch<SystemSettingsResponse>('/system/settings', { signal }),
+  updateSettings: (body: SystemSettingsUpdate) =>
+    apiFetch<SystemSettingsResponse>('/system/settings', { method: 'PATCH', body }),
 };

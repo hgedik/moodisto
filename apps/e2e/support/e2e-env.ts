@@ -30,6 +30,12 @@ export const owner = {
   password: process.env.E2E_OWNER_PASSWORD ?? defaults.ownerPassword,
 };
 
+/** The operator of the installation, seeded alongside the venue accounts. */
+export const systemUser = {
+  email: process.env.E2E_SYSTEM_EMAIL ?? defaults.systemEmail,
+  password: process.env.E2E_SYSTEM_PASSWORD ?? defaults.systemPassword,
+};
+
 /**
  * What each scenario asks for, and how far it has to reach to find it.
  *
