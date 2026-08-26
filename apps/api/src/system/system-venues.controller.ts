@@ -1,25 +1,33 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import type {
   CreatedVenueDto,
+  CreatedVenueUserDto,
+  PasswordResetDto,
   PaginatedResponse,
   SystemVenueDetailDto,
   SystemVenueDto,
   VenueDetailDto,
+  VenueUserDto,
 } from '@moodisto/shared-types';
 import {
   createVenueSchema,
+  createVenueUserSchema,
   cuidSchema,
   systemVenuesQuerySchema,
   updateVenueSettingsSchema,
+  updateVenueUserSchema,
   type CreateVenueInput,
+  type CreateVenueUserInput,
   type SystemVenuesQuery,
   type UpdateVenueSettingsInput,
+  type UpdateVenueUserInput,
 } from '@moodisto/validation';
 import { SystemAuthGuard } from '../auth/system-auth.guard';
 import { zodBody } from '../common/zod-validation.pipe';
 import { VenueAdminService } from '../admin/venue-admin.service';
 import { ProvisionVenueUseCase } from './provision-venue.usecase';
 import { SystemVenuesService } from './system-venues.service';
+import { VenueUsersService } from './venue-users.service';
 
 /**
  * Where a café is taken on and kept up to date.
@@ -34,6 +42,7 @@ export class SystemVenuesController {
     private readonly venues: SystemVenuesService,
     private readonly provision: ProvisionVenueUseCase,
     private readonly admin: VenueAdminService,
+    private readonly users: VenueUsersService,
   ) {}
 
   @Get()
@@ -59,5 +68,37 @@ export class SystemVenuesController {
     @Body(zodBody(updateVenueSettingsSchema)) body: UpdateVenueSettingsInput,
   ): Promise<VenueDetailDto> {
     return this.admin.updateSettings(venueId, body);
+  }
+
+  @Get(':venueId/users')
+  listUsers(
+    @Param('venueId', zodBody(cuidSchema)) venueId: string,
+  ): Promise<readonly VenueUserDto[]> {
+    return this.users.list(venueId);
+  }
+
+  @Post(':venueId/users')
+  createUser(
+    @Param('venueId', zodBody(cuidSchema)) venueId: string,
+    @Body(zodBody(createVenueUserSchema)) body: CreateVenueUserInput,
+  ): Promise<CreatedVenueUserDto> {
+    return this.users.create(venueId, body);
+  }
+
+  @Patch(':venueId/users/:userId')
+  updateUser(
+    @Param('venueId', zodBody(cuidSchema)) venueId: string,
+    @Param('userId', zodBody(cuidSchema)) userId: string,
+    @Body(zodBody(updateVenueUserSchema)) body: UpdateVenueUserInput,
+  ): Promise<VenueUserDto> {
+    return this.users.update(venueId, userId, body);
+  }
+
+  @Post(':venueId/users/:userId/password')
+  resetUserPassword(
+    @Param('venueId', zodBody(cuidSchema)) venueId: string,
+    @Param('userId', zodBody(cuidSchema)) userId: string,
+  ): Promise<PasswordResetDto> {
+    return this.users.resetPassword(venueId, userId);
   }
 }

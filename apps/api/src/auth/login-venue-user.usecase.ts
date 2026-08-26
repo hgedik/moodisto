@@ -43,8 +43,10 @@ export class LoginVenueUserUseCase {
       throw invalid;
     }
 
+    // A closed venue closes its console too: staff of a deactivated venue have nothing to manage,
+    // and the guest-facing pages have already stopped answering for it.
     const venue = await uow.venues.findById(account.venueId);
-    if (!venue) {
+    if (!venue || !venue.active) {
       throw invalid;
     }
 
