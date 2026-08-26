@@ -21,6 +21,7 @@ söylediğini gösterir.
 - [Gereksinimler](#gereksinimler)
 - [Kurulum](#kurulum)
 - [Ortam değişkenleri](#ortam-değişkenleri)
+- [Sistem paneli ve ayarlar](#sistem-paneli-ve-ayarlar)
 - [Migration ve seed](#migration-ve-seed)
 - [Geliştirme](#geliştirme)
 - [Testler](#testler)
@@ -163,6 +164,8 @@ geliştirme verisine hiç dokunmaz.
 - Masa QR kodları: Masa 1, Masa 2, Bar, Bahçe, VIP
 - Hesaplar: `SEED_OWNER_EMAIL` (OWNER) ve aynı parolayla bir DJ kullanıcısı. Parola
   `SEED_OWNER_PASSWORD` ile gelir ve argon2id ile hash'lenir.
+- Sistem hesabı: `SEED_SYSTEM_EMAIL` / `SEED_SYSTEM_PASSWORD`. Hiçbir mekâna bağlı değildir ve
+  yalnızca `/system/login` üzerinden girer.
 
 ---
 
@@ -177,14 +180,64 @@ Tam liste ve açıklamaları `.env.example` dosyasındadır. Öne çıkanlar:
 | `APP_URL`, `API_URL`, `CORS_ORIGINS`                                              | Origin whitelist ve mutlak URL üretimi  |
 | `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL`                                      | Tarayıcıya derlenen tek genel değerler  |
 | `COOKIE_SECRET`, `JWT_SECRET`                                                     | En az 32 karakter; asla depoya girmez   |
+| `SETTINGS_ENCRYPTION_KEY`                                                         | Veritabanındaki gizli ayarları şifreler |
 | `JWT_ACCESS_TTL_SECONDS`, `JWT_REFRESH_TTL_SECONDS`                               | Token ömürleri                          |
 | `MUSIC_PROVIDER`, `YOUTUBE_API_KEY`, `MUSIC_PROVIDER_FAKE`                        | Müzik sağlayıcı seçimi                  |
 | `PAYMENT_PROVIDER`, `PAYMENT_API_KEY`, `PAYMENT_SECRET`, `PAYMENT_WEBHOOK_SECRET` | Ödeme sağlayıcı                         |
 | `ENABLE_PAID_REQUESTS`, `ENABLE_YOUTUBE_PLAYBACK`, `RATE_LIMIT_ENABLED`           | Özellik bayrakları                      |
 | `SEED_OWNER_EMAIL`, `SEED_OWNER_PASSWORD`                                         | Yalnızca seed içindir                   |
+| `SEED_SYSTEM_EMAIL`, `SEED_SYSTEM_PASSWORD`                                       | Sistem paneli hesabı; yalnızca seed     |
 
 `YOUTUBE_API_KEY` yalnızca API sürecinde okunur. `NEXT_PUBLIC_` öneki taşımadığı için tarayıcı
 bundle'ına hiçbir koşulda girmez.
+
+Müzik, ödeme ve özellik bayrağı değişkenleri artık son söz sahibi değildir: aynı ayarların
+veritabanı karşılığı varsa o kazanır. Ayrıntı için [Sistem paneli ve
+ayarlar](#sistem-paneli-ve-ayarlar).
+
+---
+
+## Sistem paneli ve ayarlar
+
+Entegrasyon anahtarlarını değiştirmek için dosya düzenleyip yeniden dağıtım yapmak gerekmez.
+Kurulumun işletmecisi `/system/login` üzerinden kendi hesabıyla girer ve `/system/settings`
+ekranından şunları yönetir:
+
+| Grup                | Ayarlar                                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------------------------- |
+| Müzik sağlayıcısı   | `MUSIC_PROVIDER_FAKE`, `YOUTUBE_API_KEY`, `YOUTUBE_REGION_CODE`, `YOUTUBE_RELEVANCE_LANGUAGE`         |
+| Ödeme sağlayıcısı   | `PAYMENT_PROVIDER`, `PAYMENT_API_KEY`, `PAYMENT_SECRET`, `PAYMENT_BASE_URL`, `PAYMENT_WEBHOOK_SECRET` |
+| Özellik anahtarları | `ENABLE_PAID_REQUESTS`, `ENABLE_YOUTUBE_PLAYBACK`, `RATE_LIMIT_ENABLED`                               |
+
+Altyapı değişkenleri (`DATABASE_URL`, `JWT_SECRET`, `COOKIE_SECRET`, `API_PORT`, `APP_URL`,
+`CORS_ORIGINS`, `NODE_ENV`, `SETTINGS_ENCRYPTION_KEY`) panelde yer almaz: süreç bunlar olmadan
+zaten açılmaz, dolayısıyla kararlarını bir panel veremez.
+
+**Öncelik sırası** her ayar için aynıdır ve panelde her satırın yanında rozetle gösterilir:
+
+```
+veritabanı kaydı  →  .env değeri  →  şema varsayılanı
+```
+
+Hiç kayıt yoksa kurulum bugünkü davranışını sürdürür. Bir satır kaydedildiğinde etkisi **anında**
+başlar; API'yi yeniden başlatmak gerekmez. Müzik ve ödeme adaptörleri ayar imzası değiştiğinde
+kendilerini yeniden kurar, webhook imza anahtarı ise bildirim geldiği anda okunur — böylece para
+havadayken bile anahtar döndürülebilir. Bir kaydı silmek satırın yanındaki **Temizle** düğmesiyle
+olur; değer o anda bir alt kaynağa (`.env` veya varsayılan) düşer.
+
+**Gizli değerler asla düz metin dönmez.** `YOUTUBE_API_KEY`, `PAYMENT_API_KEY`, `PAYMENT_SECRET` ve
+`PAYMENT_WEBHOOK_SECRET` veritabanında AES-256-GCM ile şifrelenir; API yanıtı yalnızca "tanımlı mı"
+bilgisini ve son dört karakterlik maskeli bir önizlemeyi (`••••dK3f`) içerir. Panelde boş bırakılan
+bir gizli alan "değişmedi" demektir, temizlemek ayrı bir eylemdir.
+
+Şifreleme anahtarı `SETTINGS_ENCRYPTION_KEY` değişkeninden gelir (en az 32 karakter). Production'da
+zorunludur; geliştirme ve testte tanımlı değilse `JWT_SECRET`'tan türetilir ve açılışta uyarı
+basılır. Anahtarı döndürmek daha önce yazılmış gizli değerleri okunamaz kılar — bu durumda ilgili
+satır yedek kaynağa düşer, loglanır ve panelden yeniden girilmesi gerekir.
+
+Üretimde reddedilen birleşimler: `PAYMENT_PROVIDER=mock` iken ücretli isteklerin açık olması, ve
+demo müzik kataloğu kapalıyken `YOUTUBE_API_KEY`'in boş bırakılması. Geliştirmede aynı durumlar
+yalnızca uyarı olarak loglanır.
 
 ---
 
@@ -197,9 +250,10 @@ pnpm db:seed              # seed'i çalıştırır (idempotent, upsert tabanlıd
 pnpm db:studio            # Prisma Studio
 ```
 
-Şema 14 tablo içerir: `venues`, `venue_users`, `venue_request_pricing`, `venue_qr_codes`,
+Şema 16 tablo içerir: `venues`, `venue_users`, `venue_request_pricing`, `venue_qr_codes`,
 `customer_sessions`, `tracks`, `music_search_cache`, `provider_quota_usage`, `song_requests`,
-`queue_items`, `player_states`, `player_leases`, `payments`, `blocked_music_rules`.
+`queue_items`, `player_states`, `player_leases`, `payments`, `blocked_music_rules`,
+`system_users`, `system_settings`.
 
 `queue_items` üzerinde `(venueId, position)` için kısmi unique index vardır: aktif sırada iki
 parçanın aynı pozisyona düşmesi veritabanı düzeyinde imkânsızdır.
@@ -288,6 +342,8 @@ uygulama servisleri hiç oluşturulmaz.
 
 ```bash
 cp .env.example .env                            # secret'lar buradan okunur
+                                                # SETTINGS_ENCRYPTION_KEY dahil: gizli ayarlar
+                                                # onunla şifrelenir, değişirse okunamaz olur
 docker compose --profile app up -d --build      # postgres → migrate → api → web
 docker compose --profile seed run --rm seed     # örnek veri (isteğe bağlı, bir kez)
 ```
@@ -507,7 +563,10 @@ zamanlayıcıya ihtiyaç yoktur.
   `X-Content-Type-Options`, `Referrer-Policy` ve `Permissions-Policy` başlıklarını sayfaları sunan
   Next.js verir; yalnızca JSON döndüren API'de helmet `nosniff`, `Referrer-Policy` ve
   `Cross-Origin-Resource-Policy` uygular.
-- **API anahtarı** yalnızca sunucudadır; tarayıcı bundle'ında yer almaz.
+- **API anahtarı** yalnızca sunucudadır; tarayıcı bundle'ında yer almaz. Sistem panelinden
+  girilse bile şifrelenmiş olarak saklanır ve hiçbir yanıtta düz metin dönmez.
+- **Sistem oturumu ayrıdır**: `/system/*` uçları kendi çerezi ve kendi JWT scope'uyla korunur;
+  mekân oturumu bu konsolu açamaz, sistem oturumu mekân uçlarına geçemez.
 - **QR brute force**: token uçları rate limit'lidir ve kod pasifleştirilebilir/süreli olabilir.
 - **Secret'lar depoya girmez**; `.env` git dışıdır, `.env.example` yalnızca yer tutucu içerir.
 

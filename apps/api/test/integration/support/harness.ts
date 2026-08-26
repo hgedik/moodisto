@@ -61,6 +61,13 @@ export const createHarness = async (): Promise<Harness> => {
   app.setGlobalPrefix('api', { exclude: ['health'] });
   app.use(cookieParser());
   await app.init();
+  // supertest starts an ephemeral server of its own whenever the one it is handed is not yet
+  // listening. Agents created concurrently would each start one for the same server object and
+  // race over it, which surfaces as a request answered by nothing at all. Listening once, here,
+  // leaves every agent with the same address to talk to.
+  await new Promise<void>((resolve) => {
+    app.getHttpServer().listen(0, resolve);
+  });
 
   const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
 

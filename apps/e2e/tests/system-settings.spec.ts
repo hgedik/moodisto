@@ -1,10 +1,9 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { systemUser } from '../support/e2e-env';
 import { openConsole } from '../support/console';
 
 /** The row a setting occupies in the panel, found by the key printed under its label. */
-const settingRow = (page: import('@playwright/test').Page, key: string) =>
-  page.getByRole('listitem').filter({ hasText: key });
+const settingRow = (page: Page, key: string) => page.getByRole('listitem').filter({ hasText: key });
 
 test('an operator changes a setting and it is served from the database afterwards', async ({
   browser,

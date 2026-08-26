@@ -29,7 +29,7 @@ const contentSecurityPolicy = [
   scriptSrc,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://i.ytimg.com https://yt3.ggpht.com",
-  "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
+  'frame-src https://www.youtube.com https://www.youtube-nocookie.com',
   `connect-src 'self' ${apiOrigin} ${apiOrigin.replace(/^http/, 'ws')}`,
 ].join('; ');
 
