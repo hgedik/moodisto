@@ -204,6 +204,14 @@ const accountNameSchema = z.string().trim().min(2).max(120);
  * Everything an operator states when a café joins Moodisto. The slug is only settable here: once
  * QR codes are printed, the address a guest scans has to keep working.
  */
+/** The operator console's venue list. The page size is capped here so one console cannot ask for the whole table. */
+export const systemVenuesQuerySchema = z.object({
+  search: z.string().trim().min(1).max(120).optional(),
+  take: z.coerce.number().int().min(1).max(100).default(50),
+  skip: z.coerce.number().int().min(0).default(0),
+});
+export type SystemVenuesQuery = z.infer<typeof systemVenuesQuerySchema>;
+
 export const createVenueSchema = z.object({
   ...venueProfileShape,
   timezone: venueProfileShape.timezone.default('Europe/Istanbul'),

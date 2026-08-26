@@ -11,5 +11,6 @@ import { VenueStatsService } from './venue-stats.service';
   imports: [AuthModule, RequestsModule, VenuesModule],
   controllers: [AdminController],
   providers: [VenueAdminService, AdminQueueService, VenueStatsService],
+  exports: [VenueAdminService],
 })
 export class AdminModule {}
