@@ -252,6 +252,8 @@ export const toSystemUserRecord = (row: SystemUser): SystemUserRecord => ({
   name: row.name,
   passwordHash: row.passwordHash,
   active: row.active,
+  lastLoginAt: row.lastLoginAt,
+  createdAt: row.createdAt,
 });
 
 export const toSystemSettingRecord = (row: SystemSetting): SystemSettingRecord => ({

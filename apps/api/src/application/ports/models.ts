@@ -32,6 +32,26 @@ export interface NearbyVenueRecord extends VenueRecord {
   readonly distanceMeters: number;
 }
 
+/** A venue as the operator console lists it: the record plus the size of its staff. */
+export interface VenueListRecord extends VenueRecord {
+  readonly userCount: number;
+}
+
+/**
+ * Everything a venue needs at birth. The pricing row is created alongside it, on the schema
+ * defaults, because a venue without one cannot answer a single guest request.
+ */
+export interface CreateVenueInput {
+  readonly slug: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly address: string | null;
+  readonly logoUrl: string | null;
+  readonly timezone: string;
+  readonly latitude: number | null;
+  readonly longitude: number | null;
+}
+
 export interface VenueQrCodeRecord {
   readonly id: string;
   readonly venueId: string;
@@ -50,6 +70,20 @@ export interface VenueUserRecord {
   readonly passwordHash: string;
   readonly role: VenueUserRole;
   readonly active: boolean;
+}
+
+export interface CreateVenueUserInput {
+  readonly venueId: string;
+  readonly email: string;
+  readonly name: string;
+  readonly role: VenueUserRole;
+  readonly passwordHash: string;
+}
+
+export interface VenueUserUpdate {
+  readonly name?: string;
+  readonly role?: VenueUserRole;
+  readonly active?: boolean;
 }
 
 export interface CustomerSessionRecord {
@@ -258,6 +292,19 @@ export interface SystemUserRecord {
   readonly name: string;
   readonly passwordHash: string;
   readonly active: boolean;
+  readonly lastLoginAt: Date | null;
+  readonly createdAt: Date;
+}
+
+export interface CreateSystemUserInput {
+  readonly email: string;
+  readonly name: string;
+  readonly passwordHash: string;
+}
+
+export interface SystemUserUpdate {
+  readonly name?: string;
+  readonly active?: boolean;
 }
 
 export interface SystemSettingRecord {

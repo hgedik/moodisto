@@ -1,7 +1,9 @@
 import { type Prisma } from '@moodisto/database';
 import { RequestType } from '@moodisto/shared-types';
 import type {
+  CreateVenueInput,
   NearbyVenueRecord,
+  VenueListRecord,
   VenuePricingRecord,
   VenuePricingUpdate,
   VenueRecord,
@@ -44,6 +46,49 @@ export class PrismaVenueRepository implements VenueRepository {
   async findBySlug(slug: string): Promise<VenueRecord | null> {
     const row = await this.tx.venue.findUnique({ where: { slug } });
     return row ? toVenueRecord(row) : null;
+  }
+
+  async list(input: {
+    search?: string;
+    take: number;
+    skip: number;
+  }): Promise<{ items: readonly VenueListRecord[]; total: number }> {
+    const where: Prisma.VenueWhereInput =
+      input.search === undefined || input.search.length === 0
+        ? {}
+        : {
+            OR: [
+              { name: { contains: input.search, mode: 'insensitive' } },
+              { slug: { contains: input.search, mode: 'insensitive' } },
+            ],
+          };
+
+    const [rows, total] = await Promise.all([
+      this.tx.venue.findMany({
+        where,
+        orderBy: [{ name: 'asc' }, { slug: 'asc' }],
+        take: input.take,
+        skip: input.skip,
+        include: { _count: { select: { users: true } } },
+      }),
+      this.tx.venue.count({ where }),
+    ]);
+
+    return {
+      items: rows.map((row) => ({ ...toVenueRecord(row), userCount: row._count.users })),
+      total,
+    };
+  }
+
+  /**
+   * Opens a venue with the pricing row it cannot work without. The prices themselves come from the
+   * schema defaults, so the catalogue of what a request costs is stated in exactly one place.
+   */
+  async create(input: CreateVenueInput): Promise<VenueRecord> {
+    const row = await this.tx.venue.create({
+      data: { ...input, pricing: { create: {} } },
+    });
+    return toVenueRecord(row);
   }
 
   /** Great-circle distance in SQL: keeps the radius filter and the ordering on the database. */

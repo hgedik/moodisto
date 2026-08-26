@@ -10,6 +10,9 @@ import type {
   AdminRequestFilter,
   BlockedRuleRecord,
   CreatePaymentInput,
+  CreateSystemUserInput,
+  CreateVenueInput,
+  CreateVenueUserInput,
   CreateSongRequestInput,
   CustomerSessionRecord,
   NearbyVenueRecord,
@@ -23,9 +26,11 @@ import type {
   SystemSettingRecord,
   SystemSettingWriteInput,
   SystemUserRecord,
+  SystemUserUpdate,
   TopRequestRecord,
   TrackRecord,
   TrackUpsertInput,
+  VenueListRecord,
   VenuePricingRecord,
   VenuePricingUpdate,
   VenueQrCodeRecord,
@@ -33,11 +38,24 @@ import type {
   VenueSettingsUpdate,
   VenueStatsAggregate,
   VenueUserRecord,
+  VenueUserUpdate,
 } from './models';
 
 export interface VenueRepository {
   findById(venueId: string): Promise<VenueRecord | null>;
   findBySlug(slug: string): Promise<VenueRecord | null>;
+  /**
+   * The operator console's view of every venue, newest naming first.
+   *
+   * `total` counts the matches, not the page, so a console that had to cut the list can say so
+   * instead of pretending it showed everything.
+   */
+  list(input: {
+    search?: string;
+    take: number;
+    skip: number;
+  }): Promise<{ items: readonly VenueListRecord[]; total: number }>;
+  create(input: CreateVenueInput): Promise<VenueRecord>;
   findNearby(input: {
     latitude: number;
     longitude: number;
@@ -69,6 +87,10 @@ export interface VenueQrCodeRepository {
 export interface VenueUserRepository {
   findByEmail(email: string): Promise<VenueUserRecord | null>;
   findById(userId: string): Promise<VenueUserRecord | null>;
+  listByVenue(venueId: string): Promise<readonly VenueUserRecord[]>;
+  create(input: CreateVenueUserInput): Promise<VenueUserRecord>;
+  update(userId: string, update: VenueUserUpdate): Promise<VenueUserRecord>;
+  updatePassword(userId: string, passwordHash: string): Promise<void>;
 }
 
 export interface CustomerSessionRepository {
@@ -241,6 +263,10 @@ export interface StatsRepository {
 export interface SystemUserRepository {
   findByEmail(email: string): Promise<SystemUserRecord | null>;
   findById(userId: string): Promise<SystemUserRecord | null>;
+  list(): Promise<readonly SystemUserRecord[]>;
+  create(input: CreateSystemUserInput): Promise<SystemUserRecord>;
+  update(userId: string, update: SystemUserUpdate): Promise<SystemUserRecord>;
+  updatePassword(userId: string, passwordHash: string): Promise<void>;
   markLoggedIn(userId: string, at: Date): Promise<void>;
 }
 
