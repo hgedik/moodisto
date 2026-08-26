@@ -1,6 +1,7 @@
 import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
 import { UnauthorizedError } from '../common/errors';
 import type {
+  AuthenticatedSystemUser,
   AuthenticatedVenueUser,
   CustomerIdentity,
   MoodistoRequest,
@@ -24,5 +25,15 @@ export const CurrentCustomer = createParamDecorator(
       throw new UnauthorizedError('Misafir oturumu bulunamadı.');
     }
     return request.customer;
+  },
+);
+
+export const CurrentSystemUser = createParamDecorator(
+  (_data: unknown, context: ExecutionContext): AuthenticatedSystemUser => {
+    const request = context.switchToHttp().getRequest<MoodistoRequest>();
+    if (!request.systemUser) {
+      throw new UnauthorizedError();
+    }
+    return request.systemUser;
   },
 );

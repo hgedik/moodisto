@@ -2,6 +2,7 @@ import type { CookieOptions, Response } from 'express';
 
 export const COOKIE_NAMES = {
   venueSession: 'moodisto_venue',
+  systemSession: 'moodisto_system',
   customerSession: 'moodisto_customer',
   csrf: 'moodisto_csrf',
 } as const;

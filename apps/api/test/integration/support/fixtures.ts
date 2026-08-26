@@ -146,3 +146,14 @@ export const createPendingRequests = async (
   }
   return ids;
 };
+
+export const SYSTEM_PASSWORD = VENUE_PASSWORD;
+export const SYSTEM_EMAIL = 'system@example.com';
+
+/** The operator account, which belongs to no venue. */
+export const createSystemUserFixture = async (prisma: PrismaClient): Promise<string> => {
+  const row = await prisma.systemUser.create({
+    data: { email: SYSTEM_EMAIL, name: 'Sistem Yöneticisi', passwordHash: await hashOnce() },
+  });
+  return row.id;
+};

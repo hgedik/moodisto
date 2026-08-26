@@ -9,6 +9,13 @@ export interface AuthenticatedVenueUser {
   readonly role: VenueUserRole;
 }
 
+/** The operator of the installation; it belongs to no venue and holds no venue role. */
+export interface AuthenticatedSystemUser {
+  readonly id: string;
+  readonly email: string;
+  readonly name: string;
+}
+
 export interface CustomerIdentity {
   readonly id: string;
   readonly sessionToken: string;
@@ -18,5 +25,6 @@ export interface CustomerIdentity {
 
 export interface MoodistoRequest extends Request {
   venueUser?: AuthenticatedVenueUser;
+  systemUser?: AuthenticatedSystemUser;
   customer?: CustomerIdentity;
 }
