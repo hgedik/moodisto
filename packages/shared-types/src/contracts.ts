@@ -200,6 +200,8 @@ export interface PlayerStateDto {
   readonly upcoming: readonly QueueEntryDto[];
   readonly startedAt: string | null;
   readonly leaseOwned: boolean;
+  /** False when the system settings forbid playing through the music provider at all. */
+  readonly providerPlaybackEnabled: boolean;
 }
 
 export interface PlayerLeaseDto {

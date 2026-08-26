@@ -5,11 +5,17 @@ import type {
   PaymentSession,
   PaymentWebhookResult,
 } from '../application/ports';
-import type { AppConfig } from '../config/app-config';
 import { UnauthorizedError, UnprocessableError } from '../common/errors';
 import { hmacSha256Hex, signaturesMatch } from './signature';
 
 export const MOCK_PAYMENT_SIGNATURE_HEADER = 'x-moodisto-signature';
+
+/** Everything the mock provider needs; deliberately not the whole application configuration. */
+export interface MockPaymentSettings {
+  /** Where the fake checkout page lives. */
+  readonly appUrl: string;
+  readonly webhookSecret: string;
+}
 
 interface MockWebhookBody {
   readonly providerPaymentId?: unknown;
@@ -25,11 +31,11 @@ interface MockWebhookBody {
 export class MockPaymentProvider implements PaymentProvider {
   public readonly id = 'mock';
 
-  public constructor(private readonly config: AppConfig) {}
+  public constructor(private readonly settings: MockPaymentSettings) {}
 
   public createSession(intent: PaymentIntent): Promise<PaymentSession> {
     const providerPaymentId = `mock_${intent.requestId}`;
-    const checkoutUrl = new URL('/checkout/mock', this.config.appUrl);
+    const checkoutUrl = new URL('/checkout/mock', this.settings.appUrl);
     checkoutUrl.searchParams.set('paymentId', providerPaymentId);
     checkoutUrl.searchParams.set('amountMinor', String(intent.amountMinor));
     checkoutUrl.searchParams.set('currency', intent.currency);
@@ -44,11 +50,11 @@ export class MockPaymentProvider implements PaymentProvider {
     });
   }
 
-  public handleWebhook(
+  public async handleWebhook(
     rawBody: string,
     headers: Record<string, string | undefined>,
-  ): PaymentWebhookResult {
-    const secret = this.config.payment.webhookSecret;
+  ): Promise<PaymentWebhookResult> {
+    const secret = this.settings.webhookSecret;
     if (secret.length > 0) {
       const received = headers[MOCK_PAYMENT_SIGNATURE_HEADER] ?? '';
       if (!signaturesMatch(hmacSha256Hex(secret, rawBody), received)) {

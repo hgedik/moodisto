@@ -7,17 +7,13 @@ import {
   toIyzicoPrice,
 } from '../../src/payments/iyzico-payment-provider';
 import { hmacSha256Hex } from '../../src/payments/signature';
-import { testAppConfig } from './support/app-config';
 
-const config = testAppConfig({
-  payment: {
-    provider: 'iyzico',
-    apiKey: 'sandbox-api-key',
-    secret: 'sandbox-secret',
-    baseUrl: 'https://sandbox-api.iyzipay.com',
-    webhookSecret: 'sandbox-webhook-secret',
-  },
-});
+const credentials = {
+  apiKey: 'sandbox-api-key',
+  secret: 'sandbox-secret',
+  baseUrl: 'https://sandbox-api.iyzipay.com',
+  webhookSecret: 'sandbox-webhook-secret',
+};
 
 const intent = {
   requestId: 'req-42',
@@ -52,7 +48,7 @@ describe('IyzicoPaymentProvider.createSession', () => {
         tokenExpireTime: 1800,
       }),
     );
-    const provider = new IyzicoPaymentProvider(config, httpFetch as unknown as typeof fetch);
+    const provider = new IyzicoPaymentProvider(credentials, httpFetch as unknown as typeof fetch);
 
     const session = await provider.createSession(intent);
 
@@ -61,7 +57,7 @@ describe('IyzicoPaymentProvider.createSession', () => {
     expect(session.checkoutUrl).toBe('https://sandbox-cpp.iyzipay.com/iyz-token-1');
 
     const [url, init] = httpFetch.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe(`${config.payment.baseUrl}/payment/iyzipay/checkoutform/initialize/auth/ecom`);
+    expect(url).toBe(`${credentials.baseUrl}/payment/iyzipay/checkoutform/initialize/auth/ecom`);
     const headers = init.headers as Record<string, string>;
     const authorization = headers['authorization'] ?? '';
     expect(authorization.startsWith('IYZWSv2 ')).toBe(true);
@@ -70,11 +66,11 @@ describe('IyzicoPaymentProvider.createSession', () => {
     const randomKey = headers['x-iyzi-rnd'];
     const uriPath = '/payment/iyzipay/checkoutform/initialize/auth/ecom';
     const expected = hmacSha256Hex(
-      config.payment.secret,
+      credentials.secret,
       `${randomKey}${uriPath}${init.body as string}`,
     );
     expect(decoded).toBe(
-      `apiKey:${config.payment.apiKey}&randomKey:${randomKey}&signature:${expected}`,
+      `apiKey:${credentials.apiKey}&randomKey:${randomKey}&signature:${expected}`,
     );
 
     // Money crosses the boundary as a decimal string, but never as a float in our own model.
@@ -87,7 +83,7 @@ describe('IyzicoPaymentProvider.createSession', () => {
     const httpFetch = vi.fn(async () =>
       jsonResponse({ status: 'failure', errorMessage: 'Geçersiz istek' }),
     );
-    const provider = new IyzicoPaymentProvider(config, httpFetch as unknown as typeof fetch);
+    const provider = new IyzicoPaymentProvider(credentials, httpFetch as unknown as typeof fetch);
 
     await expect(provider.createSession(intent)).rejects.toBeInstanceOf(ServiceUnavailableError);
   });
@@ -96,14 +92,14 @@ describe('IyzicoPaymentProvider.createSession', () => {
     const httpFetch = vi.fn(async () => {
       throw new Error('ECONNRESET');
     });
-    const provider = new IyzicoPaymentProvider(config, httpFetch as unknown as typeof fetch);
+    const provider = new IyzicoPaymentProvider(credentials, httpFetch as unknown as typeof fetch);
 
     await expect(provider.createSession(intent)).rejects.toBeInstanceOf(ServiceUnavailableError);
   });
 });
 
 describe('IyzicoPaymentProvider.handleWebhook', () => {
-  const provider = new IyzicoPaymentProvider(config);
+  const provider = new IyzicoPaymentProvider(credentials);
 
   const notification = (status: string): { body: string; headers: Record<string, string> } => {
     const body = JSON.stringify({
@@ -114,31 +110,32 @@ describe('IyzicoPaymentProvider.handleWebhook', () => {
       status,
     });
     const signature = hmacSha256Hex(
-      config.payment.webhookSecret,
+      credentials.webhookSecret,
       `CHECKOUT_FORM_AUTH99001req-42${status}`,
     );
     return { body, headers: { [IYZICO_SIGNATURE_HEADER]: signature } };
   };
 
-  it('accepts a valid v3 signature and reports the token as the payment id', () => {
+  it('accepts a valid v3 signature and reports the token as the payment id', async () => {
     const { body, headers } = notification('SUCCESS');
-    const result = provider.handleWebhook(body, headers);
+    const result = await provider.handleWebhook(body, headers);
 
     expect(result.providerPaymentId).toBe('iyz-token-1');
     expect(result.status).toBe(PaymentStatus.PAID);
   });
 
-  it('treats any non success status as a failed payment', () => {
+  it('treats any non success status as a failed payment', async () => {
     const { body, headers } = notification('FAILURE');
-    expect(provider.handleWebhook(body, headers).status).toBe(PaymentStatus.FAILED);
+    const result = await provider.handleWebhook(body, headers);
+    expect(result.status).toBe(PaymentStatus.FAILED);
   });
 
-  it('rejects a notification with no signature at all', () => {
+  it('rejects a notification with no signature at all', async () => {
     const { body } = notification('SUCCESS');
-    expect(() => provider.handleWebhook(body, {})).toThrow(UnauthorizedError);
+    await expect(provider.handleWebhook(body, {})).rejects.toBeInstanceOf(UnauthorizedError);
   });
 
-  it('rejects a notification whose status was changed after signing', () => {
+  it('rejects a notification whose status was changed after signing', async () => {
     const { headers } = notification('FAILURE');
     const tampered = JSON.stringify({
       iyziEventType: 'CHECKOUT_FORM_AUTH',
@@ -147,6 +144,8 @@ describe('IyzicoPaymentProvider.handleWebhook', () => {
       paymentConversationId: 'req-42',
       status: 'SUCCESS',
     });
-    expect(() => provider.handleWebhook(tampered, headers)).toThrow(UnauthorizedError);
+    await expect(provider.handleWebhook(tampered, headers)).rejects.toBeInstanceOf(
+      UnauthorizedError,
+    );
   });
 });

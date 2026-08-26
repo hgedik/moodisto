@@ -1,8 +1,7 @@
 import { Inject, Injectable, type CanActivate, type ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RATE_LIMITER, type RateLimiter } from '../application/ports';
-import { APP_CONFIG } from '../config/config.module';
-import type { AppConfig } from '../config/app-config';
+import { SystemSettingsService } from '../settings/system-settings.service';
 import { TooManyRequestsError } from './errors';
 import { RATE_LIMIT_RULES, type RateLimitRule } from './rate-limit.decorator';
 import type { MoodistoRequest } from '../auth/authenticated-request';
@@ -12,11 +11,11 @@ export class RateLimitGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     @Inject(RATE_LIMITER) private readonly limiter: RateLimiter,
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly settings: SystemSettingsService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    if (!this.config.features.rateLimit || context.getType() !== 'http') {
+    if (context.getType() !== 'http') {
       return true;
     }
     const rules = this.reflector.getAllAndOverride<readonly RateLimitRule[] | undefined>(
@@ -24,6 +23,10 @@ export class RateLimitGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
     if (!rules || rules.length === 0) {
+      return true;
+    }
+    // Asked per request so the switch in the system panel takes effect without a restart.
+    if (!(await this.settings.effective()).features.rateLimit) {
       return true;
     }
 

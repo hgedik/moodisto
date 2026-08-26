@@ -186,6 +186,12 @@ export default function VenuePlayerPage() {
       />
 
       {error ? <Notice>{error}</Notice> : null}
+      {state && !state.providerPlaybackEnabled ? (
+        <Notice tone="info">
+          Sağlayıcı üzerinden oynatma sistem ayarlarından kapatılmış. Sıra olduğu gibi duruyor;
+          açıldığında çalmaya kaldığı yerden devam eder.
+        </Notice>
+      ) : null}
       {blocked ? (
         <Notice tone="info">
           Tarayıcı otomatik oynatmayı engelledi. Oynatıcıdaki oynat düğmesine bir kez dokun.
@@ -220,14 +226,21 @@ export default function VenuePlayerPage() {
         <Spinner label="Player durumu alınıyor…" />
       ) : track && state.current ? (
         <Card className="space-y-4">
-          <TrackPlayer
-            provider={track.provider}
-            providerTrackId={track.providerTrackId}
-            paused={paused}
-            onEnded={onEnded}
-            onError={onTrackError}
-            onBlocked={() => setBlocked(true)}
-          />
+          {state.providerPlaybackEnabled ? (
+            <TrackPlayer
+              provider={track.provider}
+              providerTrackId={track.providerTrackId}
+              paused={paused}
+              onEnded={onEnded}
+              onError={onTrackError}
+              onBlocked={() => setBlocked(true)}
+            />
+          ) : (
+            <EmptyState
+              title="Oynatma kapalı"
+              hint="Sistem panelinden sağlayıcı oynatması açılana kadar bu parça çalınmaz."
+            />
+          )}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <TrackSummary track={track} className="min-w-56 flex-1" />
             <div className="flex flex-wrap gap-2">

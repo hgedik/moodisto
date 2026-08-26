@@ -2,8 +2,7 @@ import { Controller, Headers, Inject, Post, Req, UseGuards } from '@nestjs/commo
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { PAYMENT_PROVIDER, type PaymentProvider } from '../application/ports';
-import { APP_CONFIG } from '../config/config.module';
-import type { AppConfig } from '../config/app-config';
+import { SystemSettingsService } from '../settings/system-settings.service';
 import { NotFoundError, UnprocessableError } from '../common/errors';
 import { RateLimit } from '../common/rate-limit.decorator';
 import { RateLimitGuard } from '../common/rate-limit.guard';
@@ -17,7 +16,7 @@ import { SettlePaymentUseCase } from './settle-payment.usecase';
 export class PaymentsController {
   constructor(
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly settings: SystemSettingsService,
     private readonly settle: SettlePaymentUseCase,
   ) {}
 
@@ -37,7 +36,7 @@ export class PaymentsController {
       throw new UnprocessableError('Ödeme bildirimi boş.', 'PAYMENT_WEBHOOK_INVALID');
     }
 
-    await this.settle.execute(this.provider.handleWebhook(rawBody, headers));
+    await this.settle.execute(await this.provider.handleWebhook(rawBody, headers));
     return { received: true };
   }
 
@@ -49,16 +48,17 @@ export class PaymentsController {
   @SkipCsrf()
   @RateLimit({ bucket: 'payment-mock-settle', by: 'ip', limit: 60, windowSeconds: 60 })
   async settleMock(@Req() request: RawBodyRequest<Request>): Promise<{ received: true }> {
-    if (this.config.payment.provider !== 'mock') {
+    const payment = (await this.settings.effective()).payment;
+    if (payment.provider !== 'mock') {
       throw new NotFoundError('Bulunamadı.', 'NOT_FOUND');
     }
 
     const rawBody = request.rawBody?.toString('utf8') ?? '';
-    const secret = this.config.payment.webhookSecret;
+    const secret = payment.webhookSecret;
     const headers: Record<string, string | undefined> =
       secret.length > 0 ? { [MOCK_PAYMENT_SIGNATURE_HEADER]: hmacSha256Hex(secret, rawBody) } : {};
 
-    await this.settle.execute(this.provider.handleWebhook(rawBody, headers));
+    await this.settle.execute(await this.provider.handleWebhook(rawBody, headers));
     return { received: true };
   }
 }

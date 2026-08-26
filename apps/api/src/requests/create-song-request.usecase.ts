@@ -30,6 +30,7 @@ import type { AppConfig } from '../config/app-config';
 import { ConflictError, NotFoundError, UnprocessableError } from '../common/errors';
 import { MUSIC_PROVIDER } from '../music/music-provider.factory';
 import { ProviderQuotaService } from '../music/provider-quota.service';
+import { SystemSettingsService } from '../settings/system-settings.service';
 import type { CustomerIdentity } from '../auth/authenticated-request';
 
 /**
@@ -59,6 +60,7 @@ export class CreateSongRequestUseCase {
     @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider,
     @Inject(CLOCK) private readonly clock: Clock,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly settings: SystemSettingsService,
     private readonly quota: ProviderQuotaService,
   ) {}
 
@@ -124,6 +126,9 @@ export class CreateSongRequestUseCase {
     customer: CustomerIdentity,
   ): Promise<CreatedRequest> {
     const now = this.clock.now();
+    // Read before the lock: the settings may have to be refreshed, and a network round trip has no
+    // business happening while every other guest in the venue waits behind us.
+    const { paidRequests } = (await this.settings.effective()).features;
 
     return this.database.transaction(async (uow) => {
       await uow.venues.lockForUpdate(venue.id);
@@ -165,7 +170,7 @@ export class CreateSongRequestUseCase {
         throw new NotFoundError('Mekân fiyatlandırması tanımlı değil.', 'VENUE_PRICING_MISSING');
       }
       const price = resolveRequestPrice(toDomainPricing(pricingRecord), input.requestType, {
-        paidRequestsEnabled: this.config.features.paidRequests,
+        paidRequestsEnabled: paidRequests,
       });
 
       // The table label is server-side state from the scanned QR code; the body is only a

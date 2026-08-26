@@ -6,13 +6,12 @@ import {
   MockPaymentProvider,
 } from '../../src/payments/mock-payment-provider';
 import { hmacSha256Hex } from '../../src/payments/signature';
-import { testAppConfig } from './support/app-config';
 
-const config = testAppConfig();
-const provider = new MockPaymentProvider(config);
+const settings = { appUrl: 'http://localhost:3000', webhookSecret: 'mock-webhook-secret' };
+const provider = new MockPaymentProvider(settings);
 
 const signed = (body: string): Record<string, string> => ({
-  [MOCK_PAYMENT_SIGNATURE_HEADER]: hmacSha256Hex(config.payment.webhookSecret, body),
+  [MOCK_PAYMENT_SIGNATURE_HEADER]: hmacSha256Hex(settings.webhookSecret, body),
 });
 
 describe('MockPaymentProvider', () => {
@@ -33,39 +32,44 @@ describe('MockPaymentProvider', () => {
     expect(session.providerPaymentId).toBe('mock_req-1');
   });
 
-  it('settles a correctly signed notification as paid', () => {
+  it('settles a correctly signed notification as paid', async () => {
     const body = JSON.stringify({ providerPaymentId: 'mock_req-1', status: 'PAID' });
-    const result = provider.handleWebhook(body, signed(body));
+    const result = await provider.handleWebhook(body, signed(body));
 
     expect(result.providerPaymentId).toBe('mock_req-1');
     expect(result.status).toBe(PaymentStatus.PAID);
   });
 
-  it('maps an explicit failure to a failed payment', () => {
+  it('maps an explicit failure to a failed payment', async () => {
     const body = JSON.stringify({ providerPaymentId: 'mock_req-1', status: 'FAILED' });
-    expect(provider.handleWebhook(body, signed(body)).status).toBe(PaymentStatus.FAILED);
+    const result = await provider.handleWebhook(body, signed(body));
+    expect(result.status).toBe(PaymentStatus.FAILED);
   });
 
-  it('rejects a notification with a forged signature', () => {
+  it('rejects a notification with a forged signature', async () => {
     const body = JSON.stringify({ providerPaymentId: 'mock_req-1', status: 'PAID' });
-    expect(() => provider.handleWebhook(body, { [MOCK_PAYMENT_SIGNATURE_HEADER]: 'nope' })).toThrow(
+    await expect(
+      provider.handleWebhook(body, { [MOCK_PAYMENT_SIGNATURE_HEADER]: 'nope' }),
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it('rejects a notification whose body was altered after signing', async () => {
+    const original = JSON.stringify({ providerPaymentId: 'mock_req-1', status: 'FAILED' });
+    const tampered = JSON.stringify({ providerPaymentId: 'mock_req-1', status: 'PAID' });
+    await expect(provider.handleWebhook(tampered, signed(original))).rejects.toBeInstanceOf(
       UnauthorizedError,
     );
   });
 
-  it('rejects a notification whose body was altered after signing', () => {
-    const original = JSON.stringify({ providerPaymentId: 'mock_req-1', status: 'FAILED' });
-    const tampered = JSON.stringify({ providerPaymentId: 'mock_req-1', status: 'PAID' });
-    expect(() => provider.handleWebhook(tampered, signed(original))).toThrow(UnauthorizedError);
-  });
-
-  it('rejects a signed notification that names no payment', () => {
+  it('rejects a signed notification that names no payment', async () => {
     const body = JSON.stringify({ status: 'PAID' });
-    expect(() => provider.handleWebhook(body, signed(body))).toThrow(UnprocessableError);
+    await expect(provider.handleWebhook(body, signed(body))).rejects.toBeInstanceOf(
+      UnprocessableError,
+    );
   });
 
-  it('rejects a signed notification that is not json', () => {
-    expect(() => provider.handleWebhook('not-json', signed('not-json'))).toThrow(
+  it('rejects a signed notification that is not json', async () => {
+    await expect(provider.handleWebhook('not-json', signed('not-json'))).rejects.toBeInstanceOf(
       UnprocessableError,
     );
   });

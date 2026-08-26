@@ -17,6 +17,7 @@ import { QueueModule } from './queue/queue.module';
 import { EventBusModule } from './realtime/event-bus.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { RequestsModule } from './requests/requests.module';
+import { SettingsModule } from './settings/settings.module';
 import { VenuesModule } from './venues/venues.module';
 
 /**
@@ -29,6 +30,7 @@ import { VenuesModule } from './venues/venues.module';
     InfrastructureModule,
     EventBusModule,
     PrismaModule,
+    SettingsModule,
     RealtimeModule,
     QueueModule,
     MusicModule,

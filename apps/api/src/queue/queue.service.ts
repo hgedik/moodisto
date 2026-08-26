@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   assertRequestTransition,
   planCompaction,
@@ -22,6 +22,8 @@ import {
   toSongRequestDto,
   toTrackDto,
 } from '../application/dto-mappers';
+import { SystemSettingsService } from '../settings/system-settings.service';
+import type { FeatureFlagSource } from '../settings/feature-flag-source';
 import {
   publishNowPlaying,
   publishPlayerUpdated,
@@ -49,6 +51,8 @@ const toSlot = (entry: QueueEntryRecord): ActiveQueueSlot => ({
  */
 @Injectable()
 export class QueueService {
+  constructor(@Inject(SystemSettingsService) private readonly settings: FeatureFlagSource) {}
+
   async snapshot(uow: UnitOfWork, venueId: string): Promise<QueueSnapshot> {
     const active = await uow.queue.listActive(venueId);
     return {
@@ -244,6 +248,7 @@ export class QueueService {
           current: snapshot.current,
           upcoming: snapshot.upcoming,
           leaseOwned: false,
+          providerPlaybackEnabled: this.settings.current().features.youtubePlayback,
         }),
       );
     }

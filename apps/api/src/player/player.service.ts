@@ -19,6 +19,7 @@ import { toPlayerStateDto } from '../application/dto-mappers';
 import { publishPlayerCommand } from '../application/services/realtime-messages';
 import { ConflictError } from '../common/errors';
 import { QueueService } from '../queue/queue.service';
+import { SystemSettingsService } from '../settings/system-settings.service';
 
 const isLeaseFresh = (lease: PlayerLeaseRecord, now: Date): boolean =>
   now.getTime() - lease.lastHeartbeatAt.getTime() < PLAYER_LEASE_STALE_AFTER_SECONDS * 1000;
@@ -35,10 +36,14 @@ export class PlayerService {
   constructor(
     @Inject(DATABASE) private readonly database: Database,
     @Inject(CLOCK) private readonly clock: Clock,
+    private readonly settings: SystemSettingsService,
     private readonly queue: QueueService,
   ) {}
 
   async getState(venueId: string, sessionId: string | null): Promise<PlayerStateDto> {
+    // The player polls this, and it holds no lock, which makes it the right place to let a
+    // setting changed in the system panel reach the snapshot the other paths read.
+    await this.settings.effective();
     const uow = this.database.read();
     return this.buildState(uow, venueId, sessionId);
   }
@@ -285,6 +290,7 @@ export class PlayerService {
       current: snapshot.current,
       upcoming: snapshot.upcoming,
       leaseOwned,
+      providerPlaybackEnabled: this.settings.current().features.youtubePlayback,
     });
   }
 

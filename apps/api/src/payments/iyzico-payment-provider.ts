@@ -6,7 +6,6 @@ import type {
   PaymentSession,
   PaymentWebhookResult,
 } from '../application/ports';
-import type { AppConfig } from '../config/app-config';
 import { ServiceUnavailableError, UnauthorizedError, UnprocessableError } from '../common/errors';
 import { hmacSha256Hex, signaturesMatch } from './signature';
 
@@ -21,6 +20,14 @@ interface CheckoutFormResponse {
   readonly checkoutFormContent?: string;
   readonly paymentPageUrl?: string;
   readonly tokenExpireTime?: number;
+}
+
+/** The credentials the adapter signs with; read from the system settings on every rebuild. */
+export interface IyzicoCredentials {
+  readonly apiKey: string;
+  readonly secret: string;
+  readonly baseUrl: string;
+  readonly webhookSecret: string;
 }
 
 interface IyzicoWebhookBody {
@@ -44,7 +51,7 @@ export class IyzicoPaymentProvider implements PaymentProvider {
   public readonly id = 'iyzico';
 
   public constructor(
-    private readonly config: AppConfig,
+    private readonly credentials: IyzicoCredentials,
     private readonly httpFetch: typeof fetch = fetch,
   ) {}
 
@@ -113,10 +120,10 @@ export class IyzicoPaymentProvider implements PaymentProvider {
    * Verifies iyzico's v3 webhook signature: an HMAC-SHA256, keyed with the secret, over the
    * concatenated event fields. An unverified notification never moves a request forward.
    */
-  public handleWebhook(
+  public async handleWebhook(
     rawBody: string,
     headers: Record<string, string | undefined>,
-  ): PaymentWebhookResult {
+  ): Promise<PaymentWebhookResult> {
     const body = this.parse(rawBody);
     const paymentId = this.readString(body.paymentId);
     const token = this.readString(body.token);
@@ -125,7 +132,7 @@ export class IyzicoPaymentProvider implements PaymentProvider {
       throw new UnprocessableError('Ödeme bildirimi eksik.', 'PAYMENT_WEBHOOK_INVALID');
     }
 
-    const secret = this.config.payment.webhookSecret || this.config.payment.secret;
+    const secret = this.credentials.webhookSecret || this.credentials.secret;
     const signatureBase = [
       this.readString(body.iyziEventType),
       paymentId,
@@ -147,8 +154,8 @@ export class IyzicoPaymentProvider implements PaymentProvider {
 
   /** iyzico's IYZWSv2 authentication: HMAC-SHA256 over randomKey + uri path + request body. */
   private authorizationHeader(uriPath: string, body: string, randomKey: string): string {
-    const signature = hmacSha256Hex(this.config.payment.secret, `${randomKey}${uriPath}${body}`);
-    const params = `apiKey:${this.config.payment.apiKey}&randomKey:${randomKey}&signature:${signature}`;
+    const signature = hmacSha256Hex(this.credentials.secret, `${randomKey}${uriPath}${body}`);
+    const params = `apiKey:${this.credentials.apiKey}&randomKey:${randomKey}&signature:${signature}`;
     return `IYZWSv2 ${Buffer.from(params, 'utf8').toString('base64')}`;
   }
 
@@ -157,7 +164,7 @@ export class IyzicoPaymentProvider implements PaymentProvider {
 
     let response: Response;
     try {
-      response = await this.httpFetch(`${this.config.payment.baseUrl}${uriPath}`, {
+      response = await this.httpFetch(`${this.credentials.baseUrl}${uriPath}`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',

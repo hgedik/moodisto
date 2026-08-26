@@ -57,8 +57,14 @@ export interface PaymentWebhookResult {
 export interface PaymentProvider {
   readonly id: string;
   createSession(intent: PaymentIntent): Promise<PaymentSession>;
-  /** Verifies the signature and returns the settled state, or throws when verification fails. */
-  handleWebhook(rawBody: string, headers: Record<string, string | undefined>): PaymentWebhookResult;
+  /**
+   * Verifies the signature and returns the settled state, or throws when verification fails.
+   * Asynchronous because the verifying adapter may have to read its current secret first.
+   */
+  handleWebhook(
+    rawBody: string,
+    headers: Record<string, string | undefined>,
+  ): Promise<PaymentWebhookResult>;
 }
 export const PAYMENT_PROVIDER = Symbol('PAYMENT_PROVIDER');
 

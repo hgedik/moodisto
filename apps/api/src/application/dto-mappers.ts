@@ -155,6 +155,7 @@ export const toPlayerStateDto = (input: {
   current: QueueEntryRecord | null;
   upcoming: readonly QueueEntryRecord[];
   leaseOwned: boolean;
+  providerPlaybackEnabled: boolean;
 }): PlayerStateDto => ({
   venueId: input.state.venueId,
   state: input.state.state,
@@ -163,4 +164,5 @@ export const toPlayerStateDto = (input: {
   upcoming: input.upcoming.map(toQueueEntryDto),
   startedAt: input.state.startedAt?.toISOString() ?? null,
   leaseOwned: input.leaseOwned,
+  providerPlaybackEnabled: input.providerPlaybackEnabled,
 });

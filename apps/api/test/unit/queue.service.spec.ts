@@ -7,6 +7,7 @@ import {
   RequestStatus,
   RequestType,
   ServerEvent,
+  type PlayerStateDto,
 } from '@moodisto/shared-types';
 import type {
   PlayerStateRecord,
@@ -18,6 +19,7 @@ import type {
   UnitOfWork,
 } from '../../src/application/ports';
 import { QueueService } from '../../src/queue/queue.service';
+import type { EffectiveSettings } from '../../src/settings/settings-resolver';
 
 const venueId = 'venue-1';
 const now = new Date('2026-08-25T20:00:00.000Z');
@@ -177,11 +179,19 @@ class FakeUnitOfWork {
   }
 }
 
+/** Feature flags without a database behind them. */
+const featureFlags = (
+  overrides: Partial<EffectiveSettings['features']> = {},
+): { current: () => { features: EffectiveSettings['features'] } } => {
+  const features = { paidRequests: false, youtubePlayback: true, rateLimit: false, ...overrides };
+  return { current: () => ({ features }) };
+};
+
 describe('QueueService', () => {
   let service: QueueService;
 
   beforeEach(() => {
-    service = new QueueService();
+    service = new QueueService(featureFlags());
   });
 
   it('tells the guest their song started playing', async () => {
@@ -233,6 +243,27 @@ describe('QueueService', () => {
     await service.remove(uow.asUnitOfWork(), venueId, 'queue-1', now);
 
     expect(uow.statusUpdates('request-1')).toEqual([RequestStatus.CANCELLED]);
+  });
+
+  it('tells the player when provider playback is switched off in the system settings', async () => {
+    service = new QueueService(featureFlags({ youtubePlayback: false }));
+    const uow = new FakeUnitOfWork(
+      [queueEntry({ state: QueueItemState.PLAYING, startedAt: now })],
+      [songRequest({ status: RequestStatus.PLAYING })],
+    );
+    uow.playerState = {
+      venueId,
+      state: PlaybackState.PLAYING,
+      queueItemId: 'queue-1',
+      version: 1,
+      startedAt: now,
+      updatedAt: now,
+    };
+
+    await service.broadcastVenueState(uow.asUnitOfWork(), venueId);
+
+    const update = uow.published.find((message) => message.event === ServerEvent.PlayerUpdated);
+    expect((update?.payload as PlayerStateDto).providerPlaybackEnabled).toBe(false);
   });
 
   it('leaves the player idle and publishes nothing when the queue runs dry', async () => {
