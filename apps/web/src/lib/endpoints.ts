@@ -2,12 +2,16 @@ import type {
   AuthenticatedSystemUserDto,
   AuthenticatedVenueUserDto,
   BlockedRuleDto,
+  CreatedSystemUserDto,
+  CreatedVenueDto,
+  CreatedVenueUserDto,
   CreateSongRequestResponse,
   JoinVenueResponse,
   MusicSearchResponse,
   NearbyVenueDto,
   NowPlayingDto,
   PaginatedResponse,
+  PasswordResetDto,
   PlayerLeaseDto,
   PlayerStateDto,
   QrCodeDto,
@@ -16,20 +20,29 @@ import type {
   SongRequestDto,
   StatsPeriod,
   SystemSettingsResponse,
+  SystemUserDto,
+  SystemVenueDetailDto,
+  SystemVenueDto,
   TopRequestDto,
   TopRequestsPeriod,
   VenueDetailDto,
   VenuePricingDto,
   VenueStatsDto,
+  VenueUserDto,
 } from '@moodisto/shared-types';
 import type {
   CreateBlockedRuleInput,
   CreateQrCodeInput,
   CreateSongRequestInput,
+  CreateSystemUserInput,
+  CreateVenueInput,
+  CreateVenueUserInput,
   SystemLoginInput,
   SystemSettingsUpdate,
+  UpdateSystemUserInput,
   UpdateVenuePricingInput,
   UpdateVenueSettingsInput,
+  UpdateVenueUserInput,
   VenueLoginInput,
 } from '@moodisto/validation';
 import { apiFetch } from './api-client';
@@ -227,4 +240,62 @@ export const systemApi = {
     apiFetch<SystemSettingsResponse>('/system/settings', { signal }),
   updateSettings: (body: SystemSettingsUpdate) =>
     apiFetch<SystemSettingsResponse>('/system/settings', { method: 'PATCH', body }),
+
+  venues: (search: string, signal?: AbortSignal) =>
+    apiFetch<PaginatedResponse<SystemVenueDto>>('/system/venues', {
+      query: search.length > 0 ? { search } : {},
+      signal,
+    }),
+
+  createVenue: (body: CreateVenueInput) =>
+    apiFetch<CreatedVenueDto>('/system/venues', { method: 'POST', body }),
+
+  venue: (venueId: string, signal?: AbortSignal) =>
+    apiFetch<SystemVenueDetailDto>(`/system/venues/${encodeURIComponent(venueId)}`, { signal }),
+
+  updateVenue: (venueId: string, body: UpdateVenueSettingsInput) =>
+    apiFetch<VenueDetailDto>(`/system/venues/${encodeURIComponent(venueId)}`, {
+      method: 'PATCH',
+      body,
+    }),
+
+  venueUsers: (venueId: string, signal?: AbortSignal) =>
+    apiFetch<readonly VenueUserDto[]>(`/system/venues/${encodeURIComponent(venueId)}/users`, {
+      signal,
+    }),
+
+  createVenueUser: (venueId: string, body: CreateVenueUserInput) =>
+    apiFetch<CreatedVenueUserDto>(`/system/venues/${encodeURIComponent(venueId)}/users`, {
+      method: 'POST',
+      body,
+    }),
+
+  updateVenueUser: (venueId: string, userId: string, body: UpdateVenueUserInput) =>
+    apiFetch<VenueUserDto>(
+      `/system/venues/${encodeURIComponent(venueId)}/users/${encodeURIComponent(userId)}`,
+      { method: 'PATCH', body },
+    ),
+
+  resetVenueUserPassword: (venueId: string, userId: string) =>
+    apiFetch<PasswordResetDto>(
+      `/system/venues/${encodeURIComponent(venueId)}/users/${encodeURIComponent(userId)}/password`,
+      { method: 'POST' },
+    ),
+
+  operators: (signal?: AbortSignal) =>
+    apiFetch<readonly SystemUserDto[]>('/system/users', { signal }),
+
+  createOperator: (body: CreateSystemUserInput) =>
+    apiFetch<CreatedSystemUserDto>('/system/users', { method: 'POST', body }),
+
+  updateOperator: (userId: string, body: UpdateSystemUserInput) =>
+    apiFetch<SystemUserDto>(`/system/users/${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      body,
+    }),
+
+  resetOperatorPassword: (userId: string) =>
+    apiFetch<PasswordResetDto>(`/system/users/${encodeURIComponent(userId)}/password`, {
+      method: 'POST',
+    }),
 };
