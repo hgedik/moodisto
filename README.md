@@ -239,6 +239,46 @@ satır yedek kaynağa düşer, loglanır ve panelden yeniden girilmesi gerekir.
 demo müzik kataloğu kapalıyken `YOUTUBE_API_KEY`'in boş bırakılması. Geliştirmede aynı durumlar
 yalnızca uyarı olarak loglanır.
 
+### Mekân ve kullanıcı yönetimi
+
+Sistem paneli aynı zamanda kurulumun mekânlarını ve hesaplarını yönetir: `/system/venues` mekânları,
+`/system/users` sistem operatörlerini açar.
+
+**Yeni mekân açmak tek bir işlemdir.** `/system/venues` altındaki form mekân adı, adres kısaltması
+(ad yazıldıkça önerilir, elle değiştirilebilir), saat dilimi, ilk mekân sahibinin adı ve e-postası
+ile isteğe bağlı bir masa etiketi ister. Kaydetmek tek bir transaction içinde şunları oluşturur:
+
+1. mekân kaydı,
+2. mekânın çalışabilmesi için zorunlu olan fiyatlandırma satırı (normal 0, öncelikli 2000, DJ 3000,
+   sıradaki 5000 kuruş; `TRY`),
+3. `IDLE` durumunda player state,
+4. `OWNER` rolünde ilk hesap,
+5. ilk QR kodu ve onun `/join/<token>` bağlantısı.
+
+Herhangi bir adım başarısız olursa hiçbiri kalmaz: yarım kurulmuş bir mekân ortaya çıkamaz. Aynı
+adres kısaltması veya aynı e-posta ikinci kez kullanılırsa istek `409` ile reddedilir.
+
+**İlk parolayı sistem üretir.** Panelde parola alanı yoktur; hesap oluşturulduğunda veya
+**Parolayı sıfırla** düğmesine basıldığında üretilen parola yanıtta bir kez düz metin olarak döner
+ve ekranda kopyalanabilir biçimde gösterilir. Veritabanında yalnızca argon2id özeti durur, bu yüzden
+parola bir daha okunamaz; kaybedilirse tek yol yeniden sıfırlamaktır.
+
+**Silme yoktur, pasifleştirme vardır.** Mekânlar ve hesaplar `active = false` yapılır; istek
+geçmişi, istatistikler ve ödeme kayıtları yerinde kalır. Pasifleştirmenin karşılıkları:
+
+| Pasifleştirilen | Sonuç                                                                      |
+| --------------- | -------------------------------------------------------------------------- |
+| Mekân           | Misafir sayfaları kapanır ve o mekânın kullanıcıları konsola giriş yapamaz |
+| Mekân kullanıcı | Hesap giriş yapamaz, mekânın diğer hesapları etkilenmez                    |
+| Operatör        | Sistem paneline giriş yapamaz                                              |
+
+Kurulumu kilitlemeyi önleyen üç kural `422` ile reddedilir: bir mekânın **son aktif `OWNER`**
+hesabı pasifleştirilemez veya rolü düşürülemez, bir operatör **kendini** pasifleştiremez ve
+kurulumun **son aktif operatörü** pasifleştirilemez.
+
+Adres kısaltması oluşturulduktan sonra değiştirilemez: basılmış QR kodları ve paylaşılmış
+`/v/<kısaltma>` bağlantıları o adrese bağlıdır.
+
 ---
 
 ## Migration ve seed
@@ -457,6 +497,20 @@ GET    /venue/stats
 ```
 GET    /venue/player/state
 POST   /venue/player/start · complete · error · next · pause · resume · heartbeat · release
+```
+
+**Sistem paneli** (`/system/*`, operatör JWT'si gerektirir)
+
+```
+POST   /auth/system/login · POST /auth/system/logout · GET /auth/system/me
+GET    /system/settings · PATCH /system/settings
+GET    /system/venues · POST /system/venues
+GET    /system/venues/:venueId · PATCH /system/venues/:venueId
+GET    /system/venues/:venueId/users · POST /system/venues/:venueId/users
+PATCH  /system/venues/:venueId/users/:userId
+POST   /system/venues/:venueId/users/:userId/password
+GET    /system/users · POST /system/users
+PATCH  /system/users/:userId · POST /system/users/:userId/password
 ```
 
 **Ödemeler**
