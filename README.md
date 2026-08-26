@@ -25,6 +25,7 @@ söylediğini gösterir.
 - [Geliştirme](#geliştirme)
 - [Testler](#testler)
 - [Production build](#production-build)
+- [Docker ile çalıştırma](#docker-ile-çalıştırma)
 - [Domain akışı](#domain-akışı)
 - [API yüzeyi](#api-yüzeyi)
 - [Realtime olayları](#realtime-olayları)
@@ -113,6 +114,7 @@ pnpm workspace monorepo:
 | `packages/database`       | Prisma şeması, client factory, migration'lar ve seed                        |
 | `packages/shared-types`   | API ve istemcinin paylaştığı DTO'lar, enum'lar, realtime sözleşmesi         |
 | `packages/validation`     | API ve istemcinin paylaştığı Zod şemaları                                   |
+| `docker/`                 | API ve web imajları (`Dockerfile`) ve PostgreSQL init betikleri             |
 
 `apps/web` tek bir Next.js uygulamasıdır ve route group'lara ayrılır:
 
@@ -129,7 +131,8 @@ src/app/(venue)/venue/…   mekân: /venue/login ve (console) altında dashboard
 
 - **Node.js ≥ 20.11** (geliştirme Node 24 ile yapılmıştır)
 - **pnpm 10.15.0** (`corepack enable` yeterlidir)
-- **Docker** (PostgreSQL 16 için) veya yerel bir PostgreSQL 16 kurulumu
+- **Docker** (PostgreSQL 16 için) veya yerel bir PostgreSQL 16 kurulumu. Node ve pnpm kurmadan
+  tüm yığını konteynerde çalıştırmak da mümkün: [Docker ile çalıştırma](#docker-ile-çalıştırma)
 
 ---
 
@@ -264,6 +267,60 @@ pnpm --filter @moodisto/web start   # web
 Production'da `NODE_ENV=production` olmalıdır: Content-Security-Policy `unsafe-eval` olmadan
 uygulanır (bu izin yalnızca `next dev`'in fast refresh bundler'ı için verilir) ve çerezler `Secure`
 bayrağıyla yazılır.
+
+---
+
+## Docker ile çalıştırma
+
+`docker-compose.yml` iki farklı kullanımı destekler ve ikisi birbirine karışmaz.
+
+**Geliştirme (varsayılan):** yalnızca PostgreSQL konteynerde, uygulama host'ta.
+
+```bash
+docker compose up -d      # sadece postgres
+pnpm dev
+```
+
+Unit, entegrasyon ve Playwright paketlerinin beklediği kurulum budur; profil verilmediği sürece
+uygulama servisleri hiç oluşturulmaz.
+
+**Tüm yığın konteynerde:** migration, API ve web birlikte.
+
+```bash
+cp .env.example .env                            # secret'lar buradan okunur
+docker compose --profile app up -d --build      # postgres → migrate → api → web
+docker compose --profile seed run --rm seed     # örnek veri (isteğe bağlı, bir kez)
+```
+
+Web `http://localhost:3000`, API `http://localhost:3001` adresinde açılır. Sıralama zorunlu:
+`migrate` başarıyla bitmeden API açılmaz, API sağlıklı olmadan web başlamaz — eski şemaya bağlı bir
+API sessizce yanlış çalışmaktansa hiç kalkmaz.
+
+```bash
+docker compose --profile app logs -f api web
+docker compose --profile app down               # konteynerler gider, veri volume'da kalır
+docker compose --profile app down -v            # veriyi de sil
+```
+
+Bilinmesi gerekenler:
+
+- **Web imajı ortama özeldir.** Next.js `NEXT_PUBLIC_API_URL` ve `NEXT_PUBLIC_APP_URL` değerlerini
+  build sırasında bundle'a gömer, bu yüzden başka bir alan adı için imajın yeniden build edilmesi
+  gerekir. Bu adresler tarayıcının gördüğü adreslerdir; konteyner ağındaki servis adları değil.
+  API imajı ortamdan bağımsızdır, bütün ayarlarını çalışma anında okur.
+- **Secret'lar imaja girmez.** `.env` konteynere çalışma anında bağlanır, `.dockerignore` onu build
+  context'inin dışında tutar. Dosya yoksa servis yine kalkar ve API kendi config doğrulamasında
+  eksik değişkeni söyler.
+- **`NODE_ENV` varsayılan olarak `development`.** `production` çerezleri `Secure` bayrağıyla yazar
+  ve `Secure` bir çerez düz http üzerinde taşınmaz; önüne TLS koyduktan sonra `.env` içinden
+  `NODE_ENV=production` verin.
+- **Port çakışması.** Host'ta `pnpm dev` çalışırken yığını yan yana denemek için
+  `WEB_PORT=3100 API_PORT=3101 NEXT_PUBLIC_API_URL=http://localhost:3101 docker compose --profile app up -d --build`
+  yeterlidir.
+- **Migration ve seed aynı API imajından çalışır.** Bu yüzden imaj Prisma CLI'ını ve `tsx`'i de
+  taşır; `pnpm db:*` script'lerinin beklediği `dotenv -e ../../.env` sarmalayıcısı konteynerde
+  devrede olmadığı için komutlar `prisma migrate deploy` ve `tsx prisma/seed.ts` olarak doğrudan
+  çağrılır.
 
 ---
 
