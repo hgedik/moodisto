@@ -19,12 +19,14 @@ import {
 } from '../application/ports';
 import { APP_CONFIG } from '../config/config.module';
 import type { AppConfig } from '../config/app-config';
+import { UnprocessableError } from '../common/errors';
 import {
   environmentFallback,
   resolveSettings,
   type EffectiveSettings,
   type SettingsFallback,
 } from './settings-resolver';
+import { settingsViolations } from './settings-rules';
 
 /**
  * How long a snapshot is trusted. Short enough that a second API instance follows a change within
@@ -44,6 +46,7 @@ export class SystemSettingsService {
   private readonly logger = new Logger(SystemSettingsService.name);
   private readonly fallback: SettingsFallback;
   private readonly updatedAt = new Map<SettingKey, Date>();
+  private readonly enforceRules: boolean;
 
   private snapshot: EffectiveSettings;
   private refreshedAt = Number.NEGATIVE_INFINITY;
@@ -56,6 +59,7 @@ export class SystemSettingsService {
     @Inject(CLOCK) private readonly clock: Clock,
     @Optional() environment?: NodeJS.ProcessEnv,
   ) {
+    this.enforceRules = config.isProduction;
     this.fallback = environmentFallback(config, environment ?? process.env);
     this.snapshot = resolveSettings({}, this.fallback);
   }
@@ -105,7 +109,11 @@ export class SystemSettingsService {
       if (cleared.length > 0) {
         await uow.systemSettings.remove(cleared);
       }
-      return uow.systemSettings.findAll();
+      const written = await uow.systemSettings.findAll();
+      // Judged on what the installation would actually become, inside the transaction, so a
+      // refused combination leaves nothing behind.
+      this.assertSafe(this.resolve(written).settings);
+      return written;
     });
 
     return this.adopt(rows);
@@ -122,13 +130,30 @@ export class SystemSettingsService {
     };
   }
 
+  /** Refuses a combination no live installation should be left in. Advisory outside production. */
+  private assertSafe(settings: EffectiveSettings): void {
+    const violations = settingsViolations(settings);
+    if (violations.length === 0) {
+      return;
+    }
+    if (!this.enforceRules) {
+      this.logger.warn(`Ayarlar üretimde reddedilirdi: ${violations.join(' ')}`);
+      return;
+    }
+    throw new UnprocessableError(violations.join(' '), 'UNSAFE_SETTINGS', { violations });
+  }
+
   private async load(): Promise<EffectiveSettings> {
     return this.adopt(await this.database.read().systemSettings.findAll());
   }
 
-  private adopt(rows: readonly SystemSettingRecord[]): EffectiveSettings {
+  /** Reads the rows without adopting them, for judging a change before it is committed. */
+  private resolve(rows: readonly SystemSettingRecord[]): {
+    settings: EffectiveSettings;
+    updatedAt: Map<SettingKey, Date>;
+  } {
     const stored: Partial<Record<SettingKey, string>> = {};
-    this.updatedAt.clear();
+    const updatedAt = new Map<SettingKey, Date>();
 
     for (const row of rows) {
       if (!isSettingKey(row.key)) {
@@ -137,11 +162,21 @@ export class SystemSettingsService {
       const text = this.plainText(row);
       if (text !== null) {
         stored[row.key] = text;
-        this.updatedAt.set(row.key, row.updatedAt);
+        updatedAt.set(row.key, row.updatedAt);
       }
     }
 
-    this.snapshot = resolveSettings(stored, this.fallback);
+    return { settings: resolveSettings(stored, this.fallback), updatedAt };
+  }
+
+  private adopt(rows: readonly SystemSettingRecord[]): EffectiveSettings {
+    const { settings, updatedAt } = this.resolve(rows);
+
+    this.updatedAt.clear();
+    for (const [key, stamp] of updatedAt) {
+      this.updatedAt.set(key, stamp);
+    }
+    this.snapshot = settings;
     this.refreshedAt = this.clock.now().getTime();
     return this.snapshot;
   }

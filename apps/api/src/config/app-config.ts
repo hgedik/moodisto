@@ -104,16 +104,9 @@ export function loadAppConfig(source: NodeJS.ProcessEnv = process.env): AppConfi
   const env = parsed.data;
   const isProduction = env.NODE_ENV === 'production';
 
-  if (isProduction && !env.MUSIC_PROVIDER_FAKE && env.YOUTUBE_API_KEY.length === 0) {
-    throw new InvalidConfigurationError([
-      'YOUTUBE_API_KEY: required in production unless MUSIC_PROVIDER_FAKE is enabled',
-    ]);
-  }
-  if (isProduction && env.PAYMENT_PROVIDER === 'mock' && env.ENABLE_PAID_REQUESTS) {
-    throw new InvalidConfigurationError([
-      'PAYMENT_PROVIDER: the mock provider cannot serve paid requests in production',
-    ]);
-  }
+  // Combinations of integration settings are judged where they are now entered — the system
+  // panel — because the database may well answer for them instead of this file. See
+  // `settings/settings-rules.ts`.
   if (isProduction && env.SETTINGS_ENCRYPTION_KEY === undefined) {
     throw new InvalidConfigurationError([
       'SETTINGS_ENCRYPTION_KEY: required in production to encrypt stored credentials',

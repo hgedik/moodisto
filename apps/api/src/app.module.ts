@@ -18,6 +18,7 @@ import { EventBusModule } from './realtime/event-bus.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { RequestsModule } from './requests/requests.module';
 import { SettingsModule } from './settings/settings.module';
+import { SystemModule } from './system/system.module';
 import { VenuesModule } from './venues/venues.module';
 
 /**
@@ -40,6 +41,7 @@ import { VenuesModule } from './venues/venues.module';
     RequestsModule,
     PlayerModule,
     AdminModule,
+    SystemModule,
   ],
   controllers: [HealthController],
   providers: [
