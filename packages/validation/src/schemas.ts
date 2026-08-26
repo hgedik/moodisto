@@ -4,6 +4,7 @@ import {
   RequestType,
   StatsPeriod,
   TopRequestsPeriod,
+  VenueUserRole,
 } from '@moodisto/shared-types';
 import { z } from 'zod';
 import {
@@ -14,6 +15,7 @@ import {
   MAX_SEARCH_QUERY_LENGTH,
   MAX_SEARCH_RESULTS,
   MAX_TABLE_LABEL_LENGTH,
+  MAX_VENUE_SLUG_LENGTH,
   MIN_SEARCH_QUERY_LENGTH,
 } from './constants';
 
@@ -29,12 +31,15 @@ export const requestTypeSchema = z
 export const blockedRuleTypeSchema = z
   .enum(enumValues(BlockedRuleType))
   .transform((value) => value as BlockedRuleType);
+export const venueUserRoleSchema = z
+  .enum(enumValues(VenueUserRole))
+  .transform((value) => value as VenueUserRole);
 
 export const cuidSchema = z.string().min(1).max(64);
 export const venueSlugSchema = z
   .string()
   .min(2)
-  .max(64)
+  .max(MAX_VENUE_SLUG_LENGTH)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase and hyphen separated');
 
 export const qrTokenSchema = z
@@ -175,7 +180,8 @@ export const createQrCodeSchema = z.object({
 });
 export type CreateQrCodeInput = z.infer<typeof createQrCodeSchema>;
 
-export const updateVenueSettingsSchema = z.object({
+/** Shared by the operator console's create and edit forms, so a venue describes itself the same way at every age. */
+const venueProfileShape = {
   name: z.string().trim().min(2).max(120),
   description: z.string().trim().max(500).nullish(),
   address: z.string().trim().max(300).nullish(),
@@ -183,6 +189,53 @@ export const updateVenueSettingsSchema = z.object({
   latitude: z.number().min(-90).max(90).nullish(),
   longitude: z.number().min(-180).max(180).nullish(),
   logoUrl: z.string().trim().url().max(500).nullish(),
+};
+
+export const updateVenueSettingsSchema = z.object({
+  ...venueProfileShape,
   active: z.boolean(),
 });
 export type UpdateVenueSettingsInput = z.infer<typeof updateVenueSettingsSchema>;
+
+const accountEmailSchema = z.string().trim().toLowerCase().email().max(180);
+const accountNameSchema = z.string().trim().min(2).max(120);
+
+/**
+ * Everything an operator states when a café joins Moodisto. The slug is only settable here: once
+ * QR codes are printed, the address a guest scans has to keep working.
+ */
+export const createVenueSchema = z.object({
+  ...venueProfileShape,
+  timezone: venueProfileShape.timezone.default('Europe/Istanbul'),
+  slug: venueSlugSchema,
+  owner: z.object({ name: accountNameSchema, email: accountEmailSchema }),
+  firstTableLabel: z.string().trim().min(1).max(MAX_TABLE_LABEL_LENGTH).nullish(),
+});
+export type CreateVenueInput = z.infer<typeof createVenueSchema>;
+
+/** No password field: the system generates the first one and shows it exactly once. */
+export const createVenueUserSchema = z.object({
+  email: accountEmailSchema,
+  name: accountNameSchema,
+  role: venueUserRoleSchema,
+});
+export type CreateVenueUserInput = z.infer<typeof createVenueUserSchema>;
+
+export const updateVenueUserSchema = z.object({
+  name: accountNameSchema,
+  role: venueUserRoleSchema,
+  active: z.boolean(),
+});
+export type UpdateVenueUserInput = z.infer<typeof updateVenueUserSchema>;
+
+export const createSystemUserSchema = z.object({
+  email: accountEmailSchema,
+  name: accountNameSchema,
+});
+export type CreateSystemUserInput = z.infer<typeof createSystemUserSchema>;
+
+export const updateSystemUserSchema = z.object({
+  name: accountNameSchema,
+  active: z.boolean(),
+});
+export type UpdateSystemUserInput = z.infer<typeof updateSystemUserSchema>;

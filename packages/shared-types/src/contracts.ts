@@ -260,6 +260,60 @@ export interface SystemSettingsResponse {
   readonly settings: readonly SystemSettingDto[];
 }
 
+/** How the operator console sees a venue in a list: enough to recognise it and judge its size. */
+export interface SystemVenueDto extends VenueSummaryDto {
+  readonly description: string | null;
+  readonly timezone: string;
+  readonly userCount: number;
+}
+
+export interface SystemVenueDetailDto {
+  readonly venue: VenueDetailDto;
+  readonly users: readonly VenueUserDto[];
+}
+
+export interface VenueUserDto {
+  readonly id: string;
+  readonly email: string;
+  readonly name: string;
+  readonly role: VenueUserRole;
+  readonly active: boolean;
+}
+
+export interface SystemUserDto {
+  readonly id: string;
+  readonly email: string;
+  readonly name: string;
+  readonly active: boolean;
+  readonly lastLoginAt: string | null;
+  readonly createdAt: string;
+}
+
+/**
+ * The one and only time a generated password crosses the wire. It is never stored in plain text and
+ * never returned again, so the console has to hand it over at this moment or not at all.
+ */
+export interface CreatedVenueDto {
+  readonly venue: SystemVenueDto;
+  readonly owner: VenueUserDto;
+  readonly qrCode: QrCodeDto;
+  readonly initialPassword: string;
+}
+
+export interface CreatedVenueUserDto {
+  readonly user: VenueUserDto;
+  readonly initialPassword: string;
+}
+
+export interface CreatedSystemUserDto {
+  readonly user: SystemUserDto;
+  readonly initialPassword: string;
+}
+
+export interface PasswordResetDto {
+  readonly initialPassword: string;
+}
+
 export interface PaginatedResponse<T> {
   readonly items: readonly T[];
   readonly total: number;

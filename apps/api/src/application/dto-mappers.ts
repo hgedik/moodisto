@@ -6,11 +6,14 @@ import type {
   QueueEntryDto,
   RequestTypeOptionDto,
   SongRequestDto,
+  SystemUserDto,
+  SystemVenueDto,
   TopRequestDto,
   TrackDto,
   VenueDetailDto,
   VenuePricingDto,
   VenueSummaryDto,
+  VenueUserDto,
 } from '@moodisto/shared-types';
 import type { VenuePricing } from '@moodisto/queue-engine';
 import type {
@@ -19,10 +22,13 @@ import type {
   PlayerStateRecord,
   QueueEntryRecord,
   SongRequestRecord,
+  SystemUserRecord,
   TopRequestRecord,
   TrackRecord,
+  VenueListRecord,
   VenuePricingRecord,
   VenueRecord,
+  VenueUserRecord,
 } from './ports';
 
 const PRICING_ACCESSORS = {
@@ -165,4 +171,29 @@ export const toPlayerStateDto = (input: {
   startedAt: input.state.startedAt?.toISOString() ?? null,
   leaseOwned: input.leaseOwned,
   providerPlaybackEnabled: input.providerPlaybackEnabled,
+});
+
+export const toSystemVenueDto = (venue: VenueListRecord): SystemVenueDto => ({
+  ...toVenueSummaryDto(venue),
+  description: venue.description,
+  timezone: venue.timezone,
+  userCount: venue.userCount,
+});
+
+/** The password hash stays behind: the console never has a reason to see it. */
+export const toVenueUserDto = (user: VenueUserRecord): VenueUserDto => ({
+  id: user.id,
+  email: user.email,
+  name: user.name,
+  role: user.role,
+  active: user.active,
+});
+
+export const toSystemUserDto = (user: SystemUserRecord): SystemUserDto => ({
+  id: user.id,
+  email: user.email,
+  name: user.name,
+  active: user.active,
+  lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+  createdAt: user.createdAt.toISOString(),
 });
