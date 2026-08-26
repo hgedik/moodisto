@@ -136,7 +136,7 @@ describe('provider quota', () => {
     await guest
       .post(`/api/venues/${venue.slug}/requests`, {
         provider: 'YOUTUBE',
-        providerTrackId: 'fake-dudu',
+        providerTrackId: 'SCZgGVqVsbY',
         requestType: 'NORMAL',
       })
       .expect(201);

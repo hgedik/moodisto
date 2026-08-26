@@ -33,7 +33,7 @@ describe('music catalogue', () => {
     await guest.get('/api/music/provider-search?q=tarkan').expect(200);
 
     const track = await harness.prisma.track.findFirstOrThrow({
-      where: { providerTrackId: 'fake-dudu' },
+      where: { providerTrackId: 'SCZgGVqVsbY' },
     });
     // "Dudu" by "Tarkan" on the "Tarkan" channel: the artist is kept once, not three times.
     expect(track.searchText).toBe('dudu tarkan');
@@ -51,14 +51,14 @@ describe('music catalogue', () => {
   it('refreshes the search text of a track stored before the rule changed', async () => {
     await guest.get('/api/music/provider-search?q=tarkan').expect(200);
     await harness.prisma.track.updateMany({
-      where: { providerTrackId: 'fake-dudu' },
+      where: { providerTrackId: 'SCZgGVqVsbY' },
       data: { searchText: 'eski deger' },
     });
 
     await guest.get('/api/music/provider-search?q=dudu').expect(200);
 
     const track = await harness.prisma.track.findFirstOrThrow({
-      where: { providerTrackId: 'fake-dudu' },
+      where: { providerTrackId: 'SCZgGVqVsbY' },
     });
     expect(track.searchText).toBe('dudu tarkan');
   });
@@ -99,7 +99,7 @@ describe('catalogue search', () => {
     expect(response.body.source).toBe('catalogue');
     expect(
       response.body.results.map((result: { providerTrackId: string }) => result.providerTrackId),
-    ).toContain('fake-dudu');
+    ).toContain('SCZgGVqVsbY');
     // A provider search always leaves a cache row behind. One row means only the warm-up ran.
     expect(await harness.prisma.musicSearchCache.count()).toBe(1);
   });
@@ -112,7 +112,7 @@ describe('catalogue search', () => {
 
     expect(
       response.body.results.map((result: { providerTrackId: string }) => result.providerTrackId),
-    ).toEqual(['fake-dudu']);
+    ).toEqual(['SCZgGVqVsbY']);
     expect(await harness.prisma.musicSearchCache.count()).toBe(1);
   });
 
@@ -146,7 +146,7 @@ describe('catalogue search', () => {
   it('never offers a track the provider itself refused to play', async () => {
     await warmCatalogue('tarkan');
     await harness.prisma.track.updateMany({
-      where: { providerTrackId: 'fake-dudu' },
+      where: { providerTrackId: 'SCZgGVqVsbY' },
       data: { playbackBlockedAt: new Date() },
     });
 
@@ -235,7 +235,7 @@ describe('catalogue playability feedback', () => {
   });
 
   it('marks a track that played through as proven', async () => {
-    const { trackId, itemId } = await playTrack('fake-dudu');
+    const { trackId, itemId } = await playTrack('SCZgGVqVsbY');
 
     await admin
       .post('/api/venue/player/complete', { sessionId: SESSION_ID, queueItemId: itemId })
@@ -246,7 +246,7 @@ describe('catalogue playability feedback', () => {
   });
 
   it('drops a track the provider itself refused out of the catalogue', async () => {
-    const { trackId, itemId } = await playTrack('fake-dudu');
+    const { trackId, itemId } = await playTrack('SCZgGVqVsbY');
 
     await admin
       .post('/api/venue/player/error', {
@@ -260,11 +260,11 @@ describe('catalogue playability feedback', () => {
     const track = await harness.prisma.track.findUniqueOrThrow({ where: { id: trackId } });
     expect(track.playbackBlockedAt).not.toBeNull();
     // Nobody should be offered it again, at this venue or any other.
-    expect(await catalogueIds('dudu')).not.toContain('fake-dudu');
+    expect(await catalogueIds('dudu')).not.toContain('SCZgGVqVsbY');
   });
 
   it('keeps a track whose failure was only about this venue', async () => {
-    const { trackId, itemId } = await playTrack('fake-dudu');
+    const { trackId, itemId } = await playTrack('SCZgGVqVsbY');
 
     await admin
       .post('/api/venue/player/error', {
@@ -279,16 +279,16 @@ describe('catalogue playability feedback', () => {
     // A dropped connection at one café says nothing about the track, so the shared catalogue
     // must not shrink for everyone else.
     expect(track.playbackBlockedAt).toBeNull();
-    expect(await catalogueIds('dudu')).toContain('fake-dudu');
+    expect(await catalogueIds('dudu')).toContain('SCZgGVqVsbY');
   });
 
   it('takes a blocked track back once it plays through somewhere', async () => {
-    const { trackId, itemId } = await playTrack('fake-dudu');
+    const { trackId, itemId } = await playTrack('SCZgGVqVsbY');
     await harness.prisma.track.update({
       where: { id: trackId },
       data: { playbackBlockedAt: new Date() },
     });
-    expect(await catalogueIds('dudu')).not.toContain('fake-dudu');
+    expect(await catalogueIds('dudu')).not.toContain('SCZgGVqVsbY');
 
     await admin
       .post('/api/venue/player/complete', { sessionId: SESSION_ID, queueItemId: itemId })
@@ -297,6 +297,6 @@ describe('catalogue playability feedback', () => {
     // The provider changed its mind, or the block was wrong; either way the evidence is newer.
     const track = await harness.prisma.track.findUniqueOrThrow({ where: { id: trackId } });
     expect(track.playbackBlockedAt).toBeNull();
-    expect(await catalogueIds('dudu')).toContain('fake-dudu');
+    expect(await catalogueIds('dudu')).toContain('SCZgGVqVsbY');
   });
 });

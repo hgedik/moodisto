@@ -37,7 +37,7 @@ describe('paid requests', () => {
   const requestPlayNext = () =>
     guest.post(`/api/venues/${venue.slug}/requests`, {
       provider: 'YOUTUBE',
-      providerTrackId: 'fake-dudu',
+      providerTrackId: 'SCZgGVqVsbY',
       requestType: 'PLAY_NEXT',
     });
 

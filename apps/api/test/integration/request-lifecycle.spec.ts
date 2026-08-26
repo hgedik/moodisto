@@ -106,9 +106,9 @@ describe('song request lifecycle', () => {
   });
 
   it('refuses the same track twice inside the venue cooldown', async () => {
-    await requestSong('fake-dudu').expect(201);
+    await requestSong('SCZgGVqVsbY').expect(201);
 
-    const duplicate = await requestSong('fake-dudu').expect(409);
+    const duplicate = await requestSong('SCZgGVqVsbY').expect(409);
     expect(duplicate.body.code).toBe('ALREADY_IN_QUEUE');
   });
 
@@ -142,7 +142,7 @@ describe('song request lifecycle', () => {
   });
 
   it('places a play-next request ahead of the waiting normal ones', async () => {
-    const first = await requestSong('fake-dudu').expect(201);
+    const first = await requestSong('SCZgGVqVsbY').expect(201);
     const second = await requestSong('fake-cambaz').expect(201);
     await admin.post(`/api/venue/requests/${first.body.request.id}/accept`).expect(201);
     await admin.post(`/api/venue/requests/${second.body.request.id}/accept`).expect(201);
