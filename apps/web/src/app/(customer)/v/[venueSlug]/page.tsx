@@ -45,17 +45,29 @@ export default function VenueHomePage() {
         return;
       }
       const current = mineData ?? [];
-      // A guest only sees their own requests, so an update for an unknown id is somebody else's.
-      if (!current.some((item) => item.id === request.id)) {
-        return;
-      }
-      setMine(current.map((item) => (item.id === request.id ? request : item)));
+      // The update arrives through the guest's own room, so it is theirs by construction: an id
+      // that is not on the list yet is a request sent from another tab, not somebody else's.
+      const known = current.some((item) => item.id === request.id);
+      setMine(
+        known
+          ? current.map((item) => (item.id === request.id ? request : item))
+          : // Newest first, the order the list is loaded in.
+            [request, ...current],
+      );
     },
     [mineData, setMine, venueSlug],
   );
 
   const { connected } = useRealtime(
-    venueSlug ? { scope: 'venue-customers', venueSlug } : null,
+    // Two rooms over one socket: the venue's public feed for the queue, and the guest's own room
+    // for their requests — the server resolves that one from the session cookie.
+    useMemo(
+      () =>
+        venueSlug
+          ? ([{ scope: 'venue-customers', venueSlug }, { scope: 'guest-requests' }] as const)
+          : null,
+      [venueSlug],
+    ),
     useMemo(
       () => ({
         [ServerEvent.PlayerNowPlaying]: (payload: NowPlayingDto) => setNowPlaying(payload),

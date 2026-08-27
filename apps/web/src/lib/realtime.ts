@@ -23,14 +23,14 @@ interface SubscribeAck {
 const SERVER_EVENTS = Object.values(ServerEvent);
 
 /**
- * Joins one realtime room for as long as the component is mounted.
+ * Joins one or more realtime rooms over a single socket for as long as the component is mounted.
  *
  * The socket carries the same cookies the HTTP API uses, and the server decides which rooms a
  * connection may join — this hook can only ask. Handlers are read through a ref so that a parent
  * re-render never tears the subscription down and rebuilds it.
  */
 export const useRealtime = (
-  subscription: RealtimeSubscription | null,
+  subscription: RealtimeSubscription | readonly RealtimeSubscription[] | null,
   handlers: RealtimeHandlers,
 ): { readonly connected: boolean; readonly subscribed: boolean } => {
   const handlersRef = useRef(handlers);
@@ -38,23 +38,38 @@ export const useRealtime = (
 
   const [connected, setConnected] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
-  const key = subscription ? JSON.stringify(subscription) : null;
+  const targets = subscription
+    ? Array.isArray(subscription)
+      ? subscription
+      : [subscription as RealtimeSubscription]
+    : [];
+  // The key is what the effect depends on, so an unchanged set of rooms must never rebuild it.
+  const key = targets.length > 0 ? JSON.stringify(targets) : null;
 
   useEffect(() => {
     if (!key) {
       return;
     }
-    const target = JSON.parse(key) as RealtimeSubscription;
+    const rooms = JSON.parse(key) as RealtimeSubscription[];
     const socket: Socket = io(apiBaseUrl, {
       path: '/socket.io',
       withCredentials: true,
       transports: ['websocket', 'polling'],
     });
 
+    const accepted = new Set<string>();
     const join = (): void => {
-      socket.emit(ClientEvent.Subscribe, target, (ack: SubscribeAck) => {
-        setSubscribed(ack?.ok === true);
-      });
+      accepted.clear();
+      for (const room of rooms) {
+        socket.emit(ClientEvent.Subscribe, room, (ack: SubscribeAck) => {
+          if (ack?.ok === true) {
+            accepted.add(JSON.stringify(room));
+          }
+          // Every room has to be in before the caller is told it is watching everything it asked
+          // for; one refused room (a guest with no session yet) leaves the rest working.
+          setSubscribed(accepted.size === rooms.length);
+        });
+      }
     };
 
     socket.on('connect', () => {
@@ -74,7 +89,9 @@ export const useRealtime = (
     }
 
     return () => {
-      socket.emit(ClientEvent.Unsubscribe, target);
+      for (const room of rooms) {
+        socket.emit(ClientEvent.Unsubscribe, room);
+      }
       socket.removeAllListeners();
       socket.disconnect();
       setConnected(false);

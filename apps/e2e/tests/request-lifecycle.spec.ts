@@ -84,11 +84,24 @@ test('a free request travels from the guest to the speakers and back', async ({ 
     await expect(guest.page.getByText('Çalıyor', { exact: true })).toBeVisible();
   });
 
+  // A second tab in the same guest context: the venue page the guest lands on after scanning,
+  // opened alongside the request page so both views can be watched at once.
+  const guestHome = await guest.context.newPage();
+  const myRequests = guestHome.locator('section').filter({ hasText: 'İsteklerim' });
+
+  await test.step("the guest's own list shows the song playing", async () => {
+    await guestHome.goto(`/v/${venueSlug}`);
+    await expect(myRequests.getByText(catalogue.free.title, { exact: true })).toBeVisible();
+    await expect(myRequests.getByText('Çalıyor', { exact: true })).toBeVisible();
+  });
+
   await test.step('finishing the song completes the request and empties the queue', async () => {
     await venue.page.getByTestId('stub-ended').click();
 
     await expect(venue.page.getByText('Sıra boş', { exact: true })).toBeVisible();
     await expect(guest.page.getByText('Çalındı', { exact: true })).toBeVisible();
+    // No reload here: the guest's own list has to follow the request over the socket.
+    await expect(myRequests.getByText('Çalındı', { exact: true })).toBeVisible();
   });
 
   await guest.context.close();
