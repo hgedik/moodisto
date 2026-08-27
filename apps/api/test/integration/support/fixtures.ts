@@ -86,14 +86,14 @@ export const createVenueFixture = async (
 
 /**
  * Track ids understood by the fake music provider, which the integration suite pins on so that no
- * test ever depends on a third party being reachable. The first one is a real provider id — the
- * fake catalogue keeps one playable track for local trials — but nothing here leaves the process.
+ * test ever depends on a third party being reachable. Two of them are real provider ids — the
+ * fake catalogue keeps playable tracks for local trials — but nothing here leaves the process.
  */
 export const FAKE_TRACK_IDS = [
   'SCZgGVqVsbY',
   'fake-bir-derdim-var',
   'fake-papara',
-  'fake-cambaz',
+  'Lw4unI3tVNQ',
   'fake-yaslanmadan',
   'fake-ben-boyleyim',
 ] as const;

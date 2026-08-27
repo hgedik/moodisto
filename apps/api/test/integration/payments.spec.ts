@@ -166,7 +166,7 @@ describe('paid requests', () => {
     await guest
       .post(`/api/venues/${venue.slug}/requests`, {
         provider: 'YOUTUBE',
-        providerTrackId: 'fake-cambaz',
+        providerTrackId: 'Lw4unI3tVNQ',
         requestType: 'PLAY_NEXT',
       })
       .expect(201);
@@ -182,7 +182,7 @@ describe('paid requests', () => {
     await guest
       .post(`/api/venues/${venue.slug}/requests`, {
         provider: 'YOUTUBE',
-        providerTrackId: 'fake-cambaz',
+        providerTrackId: 'Lw4unI3tVNQ',
         requestType: 'PLAY_NEXT',
       })
       .expect(201);
@@ -199,7 +199,7 @@ describe('paid requests', () => {
     const created = await freeGuest
       .post(`/api/venues/${free.slug}/requests`, {
         provider: 'YOUTUBE',
-        providerTrackId: 'fake-cambaz',
+        providerTrackId: 'Lw4unI3tVNQ',
         requestType: 'PLAY_NEXT',
       })
       .expect(201);

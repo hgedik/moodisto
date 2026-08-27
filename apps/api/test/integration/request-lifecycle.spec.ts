@@ -93,7 +93,7 @@ describe('song request lifecycle', () => {
   });
 
   it('rejects a request and records the reason', async () => {
-    const created = await requestSong('fake-cambaz').expect(201);
+    const created = await requestSong('Lw4unI3tVNQ').expect(201);
     const requestId = created.body.request.id;
 
     const rejected = await admin
@@ -115,7 +115,7 @@ describe('song request lifecycle', () => {
   it('refuses a track the venue has blocked', async () => {
     await admin.post('/api/venue/filters', { type: 'KEYWORD', value: 'cambaz' }).expect(201);
 
-    const blocked = await requestSong('fake-cambaz').expect(422);
+    const blocked = await requestSong('Lw4unI3tVNQ').expect(422);
     expect(blocked.body.code).toBe('TRACK_BLOCKED');
   });
 
@@ -143,7 +143,7 @@ describe('song request lifecycle', () => {
 
   it('places a play-next request ahead of the waiting normal ones', async () => {
     const first = await requestSong('SCZgGVqVsbY').expect(201);
-    const second = await requestSong('fake-cambaz').expect(201);
+    const second = await requestSong('Lw4unI3tVNQ').expect(201);
     await admin.post(`/api/venue/requests/${first.body.request.id}/accept`).expect(201);
     await admin.post(`/api/venue/requests/${second.body.request.id}/accept`).expect(201);
 

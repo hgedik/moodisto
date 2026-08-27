@@ -12,7 +12,7 @@ import type {
 
 const CATALOGUE: readonly TrackSearchResult[] = [
   {
-    // The one real provider id in this catalogue: a local trial needs a track the embed can
+    // The two real provider ids in this catalogue: a local trial needs tracks the embed can
     // actually play. Nothing here reaches the provider, so the rest stay obviously fake.
     provider: MusicProviderId.YOUTUBE,
     providerTrackId: 'SCZgGVqVsbY',
@@ -45,7 +45,7 @@ const CATALOGUE: readonly TrackSearchResult[] = [
   },
   {
     provider: MusicProviderId.YOUTUBE,
-    providerTrackId: 'fake-cambaz',
+    providerTrackId: 'Lw4unI3tVNQ',
     title: 'Cambaz',
     artist: 'Mor ve Ötesi',
     channelName: 'Mor ve Ötesi',
