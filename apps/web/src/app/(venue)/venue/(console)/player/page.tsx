@@ -1,14 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { PlayerCommandPayload, PlayerStateDto } from '@moodisto/shared-types';
-import { PlaybackState, PlayerCommand, ServerEvent } from '@moodisto/shared-types';
-import { PLAYER_HEARTBEAT_INTERVAL_SECONDS } from '@moodisto/validation';
-import { ApiError, errorMessage } from '@/lib/api-client';
-import { playerApi } from '@/lib/endpoints';
+import { PlaybackState } from '@moodisto/shared-types';
 import { playbackStateLabel, requestTypeLabel } from '@/lib/format';
-import { playerSessionId } from '@/lib/player-session';
-import { useRealtime } from '@/lib/realtime';
+import { usePlayerEngine } from '@/lib/player-engine';
 import { useVenueSession } from '@/lib/venue-session';
 import { TrackPlayer } from '@/components/player/track-player';
 import { TrackSummary } from '@/components/track-summary';
@@ -25,159 +19,21 @@ import {
 
 export default function VenuePlayerPage() {
   const { user } = useVenueSession();
-  const venueId = user.venue.id;
-
-  const [sessionId, setSessionId] = useState('');
-  const [state, setState] = useState<PlayerStateDto | null>(null);
-  const [running, setRunning] = useState(false);
-  const [starting, setStarting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [conflict, setConflict] = useState(false);
-  const [blocked, setBlocked] = useState(false);
-
-  useEffect(() => setSessionId(playerSessionId()), []);
-
-  // The lease flag on a broadcast reflects whoever caused it, so ownership is only ever taken
-  // from this tab's own start and heartbeat responses.
-  const runningRef = useRef(false);
-  runningRef.current = running;
-  const sessionRef = useRef('');
-  sessionRef.current = sessionId;
-
-  const stop = useCallback((message: string | null) => {
-    setRunning(false);
-    setError(message);
-  }, []);
-
-  const start = async (takeover: boolean): Promise<void> => {
-    setStarting(true);
-    setError(null);
-    setConflict(false);
-    setBlocked(false);
-    try {
-      // Started from a click, which is also the gesture the browser needs before it lets audio play.
-      const next = await playerApi.start(sessionId, takeover);
-      setState(next);
-      setRunning(true);
-    } catch (cause) {
-      if (cause instanceof ApiError && cause.code === 'PLAYER_ALREADY_RUNNING') {
-        setConflict(true);
-      }
-      setError(errorMessage(cause));
-    } finally {
-      setStarting(false);
-    }
-  };
-
-  const guard = useCallback(async (work: () => Promise<PlayerStateDto>): Promise<void> => {
-    try {
-      setState(await work());
-      setError(null);
-    } catch (cause) {
-      setError(errorMessage(cause));
-    }
-  }, []);
-
-  const currentId = state?.current?.id ?? null;
-
-  const onEnded = useCallback(() => {
-    if (currentId && runningRef.current) {
-      void guard(() => playerApi.complete(sessionRef.current, currentId));
-    }
-  }, [currentId, guard]);
-
-  const onTrackError = useCallback(
-    (code: string, message: string) => {
-      if (currentId && runningRef.current) {
-        void guard(() => playerApi.reportError(sessionRef.current, currentId, code, message));
-      }
-    },
-    [currentId, guard],
-  );
-
-  /** The lease is what stops two tabs from driving one speaker system. */
-  useEffect(() => {
-    if (!running || sessionId.length === 0) {
-      return;
-    }
-    const timer = setInterval(() => {
-      playerApi
-        .heartbeat(sessionId)
-        .then((lease) => {
-          if (!lease.heldByCaller) {
-            stop('Player kontrolü başka bir sekmeye geçti.');
-          }
-        })
-        .catch((cause: unknown) => stop(errorMessage(cause)));
-    }, PLAYER_HEARTBEAT_INTERVAL_SECONDS * 1000);
-    return () => clearInterval(timer);
-  }, [running, sessionId, stop]);
-
-  /** Leaving the page hands the venue back, so the next tab does not have to wait the lease out. */
-  useEffect(() => {
-    const release = (): void => {
-      if (runningRef.current && sessionRef.current) {
-        void playerApi.release(sessionRef.current).catch(() => undefined);
-      }
-    };
-    window.addEventListener('pagehide', release);
-    return () => {
-      window.removeEventListener('pagehide', release);
-      release();
-    };
-  }, []);
-
-  const { connected } = useRealtime(
-    { scope: 'venue-player', venueId },
-    useMemo(
-      () => ({
-        [ServerEvent.PlayerUpdated]: (payload: PlayerStateDto) => {
-          if (payload.venueId === venueId) {
-            setState((previous) => ({ ...payload, leaseOwned: previous?.leaseOwned ?? false }));
-          }
-        },
-        [ServerEvent.PlayerCommand]: (payload: PlayerCommandPayload) => {
-          if (payload.venueId !== venueId) {
-            return;
-          }
-          if (payload.command === PlayerCommand.LeaseRevoked) {
-            stop('Player kontrolü başka bir sekmeye devredildi.');
-            return;
-          }
-          if (payload.command === PlayerCommand.Reload && runningRef.current) {
-            void guard(() => playerApi.state(sessionRef.current));
-          }
-        },
-      }),
-      [guard, stop, venueId],
-    ),
-  );
-
-  const paused = state?.state === PlaybackState.PAUSED;
-  const track = state?.current?.track ?? null;
+  const player = usePlayerEngine(user.venue.id);
+  const { state, running, paused, track } = player;
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Player"
-        subtitle={<ConnectionDot connected={connected} />}
+        subtitle={<ConnectionDot connected={player.connected} />}
         actions={
           running ? (
             <>
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  void guard(() =>
-                    paused ? playerApi.resume(sessionId) : playerApi.pause(sessionId),
-                  )
-                }
-              >
+              <Button variant="secondary" onClick={player.togglePause}>
                 {paused ? 'Devam et' : 'Duraklat'}
               </Button>
-              <Button
-                variant="secondary"
-                onClick={() => void guard(() => playerApi.skip(sessionId))}
-              >
+              <Button variant="secondary" onClick={player.skip}>
                 Sonraki
               </Button>
             </>
@@ -185,14 +41,14 @@ export default function VenuePlayerPage() {
         }
       />
 
-      {error ? <Notice>{error}</Notice> : null}
+      {player.error ? <Notice>{player.error}</Notice> : null}
       {state && !state.providerPlaybackEnabled ? (
         <Notice tone="info">
           Sağlayıcı üzerinden oynatma sistem ayarlarından kapatılmış. Sıra olduğu gibi duruyor;
           açıldığında çalmaya kaldığı yerden devam eder.
         </Notice>
       ) : null}
-      {blocked ? (
+      {player.blocked ? (
         <Notice tone="info">
           Tarayıcı otomatik oynatmayı engelledi. Oynatıcıdaki oynat düğmesine bir kez dokun.
         </Notice>
@@ -206,17 +62,17 @@ export default function VenuePlayerPage() {
           </p>
           <Button
             className="w-full py-4 text-base"
-            disabled={starting || sessionId.length === 0}
-            onClick={() => void start(false)}
+            disabled={player.starting || !player.ready}
+            onClick={() => player.start(false)}
           >
-            {starting ? 'Başlatılıyor…' : "PLAYER'I BAŞLAT"}
+            {player.starting ? 'Başlatılıyor…' : "PLAYER'I BAŞLAT"}
           </Button>
-          {conflict ? (
+          {player.conflict ? (
             <Button
               variant="danger"
               className="w-full"
-              disabled={starting}
-              onClick={() => void start(true)}
+              disabled={player.starting}
+              onClick={() => player.start(true)}
             >
               Diğer sekmeden devral
             </Button>
@@ -231,9 +87,9 @@ export default function VenuePlayerPage() {
               provider={track.provider}
               providerTrackId={track.providerTrackId}
               paused={paused}
-              onEnded={onEnded}
-              onError={onTrackError}
-              onBlocked={() => setBlocked(true)}
+              onEnded={player.onEnded}
+              onError={player.onTrackError}
+              onBlocked={player.onBlocked}
             />
           ) : (
             <EmptyState
@@ -258,7 +114,7 @@ export default function VenuePlayerPage() {
             title="Oynatma durduruldu"
             hint="Üst üste birkaç parça çalınamadı. Sıra olduğu gibi duruyor: internet bağlantısını ve ses çıkışını kontrol ettikten sonra tekrar dene."
           />
-          <Button className="w-full" onClick={() => void guard(() => playerApi.resume(sessionId))}>
+          <Button className="w-full" onClick={player.retry}>
             Tekrar dene
           </Button>
         </Card>
