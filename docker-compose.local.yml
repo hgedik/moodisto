@@ -1,0 +1,195 @@
+# ---------------------------------------------------------------------------
+# Moodisto local trial stack
+# ---------------------------------------------------------------------------
+# This file builds nothing. It pulls the very images that were pushed for the
+# server and runs them on Docker Desktop, so what is tried here is the artefact
+# that ships rather than a local rebuild of it.
+#
+#   docker compose -f docker-compose.local.yml pull
+#   docker compose -f docker-compose.local.yml up -d
+#   docker compose -f docker-compose.local.yml --profile seed run --rm seed
+#   open http://localhost:8080
+#
+#   docker compose -f docker-compose.local.yml down     → keeps the database
+#   docker compose -f docker-compose.local.yml down -v  → forgets it as well
+#
+# Every setting lives in this file and there is no env file to prepare. The
+# credentials below are throwaway local ones, which is the only reason they may
+# sit in git; a deployment reads its own from .env.deploy instead.
+#
+# The project name is its own, so this stack and the development stack in
+# docker-compose.yml can run side by side without sharing a container name, a
+# port or a volume.
+name: moodisto-local
+
+# The images were built for the server, which is linux/amd64. On an Apple
+# Silicon machine they run under emulation: slower to start, otherwise the same
+# thing the server runs.
+x-api-image: &api-image
+  image: mobven/test:moodisto-api
+  platform: linux/amd64
+
+# The API, the migration job and the seed job all want the same settings, so
+# they are written once here.
+x-api-environment: &api-environment
+  # `postgres` is the service below, on the container network; the port
+  # published to the host is a separate matter.
+  DATABASE_URL: postgresql://moodisto:moodisto@postgres:5432/moodisto?schema=public
+
+  # Deliberately not production: production marks the auth cookies Secure, and
+  # a Secure cookie never travels over plain http — nobody could sign in on
+  # http://localhost. It also turns the unsafe-settings rules into warnings
+  # instead of refusals, which is what makes the combinations below usable.
+  NODE_ENV: development
+  API_PORT: 3001
+
+  # One origin for the browser: the proxy in front of this stack, exactly like
+  # the reverse proxy on the server. The web image looks for the API on the
+  # page's own origin, so no other address would work — and the QR codes the
+  # seed writes point here too.
+  APP_URL: http://localhost:8080
+  API_URL: http://localhost:8080
+  CORS_ORIGINS: http://localhost:8080
+
+  COOKIE_SECRET: moodisto-local-cookie-secret-0001
+  JWT_SECRET: moodisto-local-jwt-secret-0001
+  JWT_ACCESS_TTL_SECONDS: 900
+  JWT_REFRESH_TTL_SECONDS: 2592000
+  # Encrypts the provider keys entered in the system console. Fixed here so a
+  # key typed once survives a restart of the stack.
+  SETTINGS_ENCRYPTION_KEY: moodisto-local-settings-key-000001
+
+  # No YouTube key, so the local catalogue answers searches and no quota is
+  # spent. To try the real provider, enter a key in the system console and set
+  # this to 'false' — the stored key wins over anything written here.
+  MUSIC_PROVIDER: YOUTUBE
+  MUSIC_PROVIDER_FAKE: 'true'
+  YOUTUBE_API_KEY: ''
+  YOUTUBE_REGION_CODE: TR
+  YOUTUBE_RELEVANCE_LANGUAGE: tr
+
+  # Paid requests on top of the mock provider is a combination a production
+  # install refuses; here it only logs a warning, and it is what makes the paid
+  # flow reachable without a payment account.
+  PAYMENT_PROVIDER: mock
+  PAYMENT_API_KEY: ''
+  PAYMENT_SECRET: ''
+  PAYMENT_BASE_URL: https://sandbox-api.iyzipay.com
+  PAYMENT_WEBHOOK_SECRET: moodisto-local-webhook-secret
+  ENABLE_PAID_REQUESTS: 'true'
+  ENABLE_YOUTUBE_PLAYBACK: 'true'
+
+  # Left on so the limits behave the way they will on the server: five requests
+  # per ten minutes per guest, thirty searches per minute per address.
+  RATE_LIMIT_ENABLED: 'true'
+
+  # Read by the seed profile only.
+  SEED_OWNER_EMAIL: admin@moodisto.local
+  SEED_OWNER_PASSWORD: moodisto-local-2026
+  SEED_SYSTEM_EMAIL: system@moodisto.local
+  SEED_SYSTEM_PASSWORD: moodisto-local-2026
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: moodisto-local-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: moodisto
+      POSTGRES_PASSWORD: moodisto
+      POSTGRES_DB: moodisto
+    # Published on 5434 because the development stack already answers on 5433.
+    # Only needed to look inside with psql; the app reaches it over the network
+    # below.
+    ports:
+      - '127.0.0.1:5434:5432'
+    volumes:
+      - moodisto-local-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U moodisto -d moodisto']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # The schema is brought up to date before the API opens. A one-shot job, and
+  # finishing successfully is the API's start condition: an API bound to an
+  # outdated schema should not start at all rather than misbehave quietly.
+  migrate:
+    <<: *api-image
+    container_name: moodisto-local-migrate
+    restart: 'no'
+    environment: *api-environment
+    command: ['pnpm', '--filter', '@moodisto/database', 'exec', 'prisma', 'migrate', 'deploy']
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Demo venues, accounts and a queue to look at. Behind a profile, so `up`
+  # never reseeds a database that is already being used:
+  #   docker compose -f docker-compose.local.yml --profile seed run --rm seed
+  seed:
+    <<: *api-image
+    profiles: ['seed']
+    restart: 'no'
+    environment: *api-environment
+    command: ['pnpm', '--filter', '@moodisto/database', 'exec', 'tsx', 'prisma/seed.ts']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    <<: *api-image
+    container_name: moodisto-local-api
+    restart: unless-stopped
+    # pnpm and node run as PID 1, so an init process takes over signals and
+    # reaps orphans.
+    init: true
+    environment: *api-environment
+    # No published port on purpose: the browser must use the single origin, and
+    # a second address reachable from outside would only invite testing against
+    # something the server does not offer. Use `docker compose exec` or the
+    # proxy for a look inside.
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    image: mobven/test:moodisto-web
+    platform: linux/amd64
+    container_name: moodisto-local-web
+    restart: unless-stopped
+    init: true
+    # The browser addresses were baked into the bundle at build time and cannot
+    # be changed here. They are repeated because the Next.js server reads them
+    # again when it writes the Content-Security-Policy: empty means "the API is
+    # on this very origin", which `'self'` already covers, while leaving them
+    # unset would put a stray localhost back into the policy.
+    environment:
+      NEXT_PUBLIC_API_URL: ''
+      NEXT_PUBLIC_APP_URL: ''
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # The single origin. Everything the browser touches goes through here, which
+  # is also what makes this stack a rehearsal of the server: the same paths are
+  # routed the same way.
+  proxy:
+    image: nginx:1.27-alpine
+    container_name: moodisto-local-proxy
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:8080:80'
+    volumes:
+      - ./docker/nginx/local.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1/ || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  moodisto-local-postgres-data:

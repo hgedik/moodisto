@@ -28,6 +28,7 @@ söylediğini gösterir.
 - [Production build](#production-build)
 - [Docker ile çalıştırma](#docker-ile-çalıştırma)
 - [Sunucuya yayınlama](#sunucuya-yayınlama)
+- [Yerel deneme (imaj çekerek)](#yerel-deneme-imaj-çekerek)
 - [Domain akışı](#domain-akışı)
 - [API yüzeyi](#api-yüzeyi)
 - [Realtime olayları](#realtime-olayları)
@@ -482,6 +483,59 @@ Tek alan adı kurulumunda proxy'nin şu yönlendirmeleri yapması gerekir:
 `/socket.io` yolu atlanırsa uygulama açılır ama canlı güncellemeler çalışmaz. TLS proxy'de sonlanır;
 `.env.deploy` içindeki `NODE_ENV=production` çerezleri `Secure` yaptığı için düz http üzerinden
 oturum açılamaz.
+
+---
+
+## Yerel deneme (imaj çekerek)
+
+Sunucuya çıkan imajları yayınlamadan önce Docker Desktop'ta denemek için üçüncü bir compose dosyası
+var: `docker-compose.local.yml`. Bu dosya da **build etmez**, `docker-compose.deploy.yml` ile aynı
+imajları çeker — yani denenen şey, sunucuda çalışacak olanın kendisidir, yerel bir yeniden derlemesi
+değil.
+
+Deploy dosyasından iki farkı vardır:
+
+- **PostgreSQL yığının içindedir.** Yerelde dışarıda yönetilen bir veritabanı yoktur.
+- **Öne bir nginx konur.** Web imajı API'yi sayfanın kendi origin'inde arayacak şekilde build
+  edildiği için tarayıcıya tek bir adres göstermek şarttır. `docker/nginx/local.conf` sunucudaki
+  reverse proxy'nin yapması gereken yönlendirmenin aynısını yapar, dolayısıyla bu yığın aynı zamanda
+  proxy kurulumunun provası olur.
+
+Ayarların tamamı compose dosyasının içindedir; hazırlanacak bir env dosyası yoktur. Oradaki
+kimlik bilgileri yalnızca yerel kullanım içindir — bu yüzden depoda durabilirler.
+
+```bash
+docker compose -f docker-compose.local.yml pull
+docker compose -f docker-compose.local.yml up -d
+docker compose -f docker-compose.local.yml --profile seed run --rm seed   # örnek veri
+open http://localhost:8080
+
+docker compose -f docker-compose.local.yml down      # veritabanı durur, veri kalır
+docker compose -f docker-compose.local.yml down -v   # veriyi de siler
+```
+
+Seed çıktısı QR bağlantılarını ve hesapları yazar:
+
+| Ne             | Nerede                                                            |
+| -------------- | ----------------------------------------------------------------- |
+| Misafir        | Seed'in yazdığı `http://localhost:8080/join/...` adresleri        |
+| Mekân konsolu  | `/venue/login` — `admin@moodisto.local` / `moodisto-local-2026`   |
+| Sistem konsolu | `/system/login` — `system@moodisto.local` / `moodisto-local-2026` |
+| PostgreSQL     | `127.0.0.1:5434` (psql ile bakmak için)                           |
+
+Bilinmesi gerekenler:
+
+- **Proje adı ayrıdır** (`moodisto-local`), portlar 8080 ve 5434'tür. Geliştirme yığınıyla
+  (`docker-compose.yml`) aynı anda, birbirine dokunmadan çalışabilir.
+- **`NODE_ENV=development`'tır.** `production` çerezleri `Secure` yapar, `Secure` çerez düz http
+  üzerinden gitmez ve hiç kimse `http://localhost` üzerinde oturum açamazdı.
+- **Arama yerel kataloğa düşer** (`MUSIC_PROVIDER_FAKE=true`), böylece kota harcanmaz. Gerçek
+  sağlayıcıyı denemek için sistem konsolundan anahtarı girip bu bayrağı `false` yapın; veritabanı
+  değeri her hâlükârda compose'daki değerin önüne geçer.
+- **Hız sınırları açıktır.** Sunucudaki davranışın aynısı görünsün diye: misafir başına on dakikada
+  beş istek, adres başına dakikada otuz arama.
+- İmajlar `linux/amd64` olduğu için Apple Silicon'da emülasyonla çalışır; açılış yavaştır, davranış
+  aynıdır.
 
 ---
 

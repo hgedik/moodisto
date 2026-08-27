@@ -58,3 +58,5 @@ docs
 README.md
 docker-compose.yml
 docker-compose.deploy.yml
+docker-compose.local.yml
+docker/nginx
