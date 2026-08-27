@@ -311,7 +311,14 @@ pnpm dev:web    # yalnızca web   → http://localhost:3000
 Elde bir YouTube API anahtarı yoksa `.env` içinde `MUSIC_PROVIDER_FAKE=true` yapın: arama, kotasız
 ve deterministik bir çevrimdışı katalogdan cevaplanır.
 
-Player'ı denemek için: mekân hesabıyla `/venue/login` → `/venue/player` → **PLAYER'I BAŞLAT**.
+Player'ı denemek için: mekân hesabıyla `/venue/login` → sağ alttaki **Player** kulakçığını aç →
+**PLAYER'I BAŞLAT**. (`/venue/player` sayfası da aynı kulakçığı açar.)
+
+Player konsolun sağ alt köşesinde, sekmelerden bağımsız bir kulakçıkta çalışır: konsol
+sayfaları arasında gezmek müziği kesmez, çünkü oynatıcı sayfada değil konsol layout'unda durur.
+Kulakçık kapalıyken de gömülü oynatıcı görünür kalır, yalnızca küçülür. Sayfayı yenilemek veya
+konsoldan çıkmak player'ı durdurur; tarayıcı sesi yeniden başlatmak için bir dokunuş ister.
+
 Player kirasını (lease) alan tek sekme çalar; ikinci bir sekme açıldığında ilkinin kirası düşer ve
 o sekme `lease-revoked` komutunu alır.
 
@@ -634,7 +641,8 @@ umuma açık gösterimini ve müzik yayınını yasaklar. Bu nedenle:
 - Bu depodaki **YouTube sağlayıcısı geliştirme ve demo içindir.** Production'da lisanslı bir
   sağlayıcıya geçmek mimari gereği tek modül değişikliğidir.
 - Player embed'i **görünürdür**; gizli iframe, `display:none` veya yalnızca arka planda çalma
-  yoktur. Reklamlar ve oynatıcı davranışı engellenmez.
+  yoktur. Reklamlar ve oynatıcı davranışı engellenmez. Konsoldaki kulakçık kapatıldığında da embed
+  ekranda kalır, yalnızca küçülür.
 - `yt-dlp`, YouTube URL → MP3 dönüşümü ve ses akışı çıkarma **kesinlikle yoktur** ve eklenmemelidir.
 
 Mekân müziğini umuma açık çalmak, bulunduğunuz ülkedeki meslek birliklerine karşı ayrıca telif
