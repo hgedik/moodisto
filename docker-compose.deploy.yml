@@ -1,0 +1,71 @@
+# ---------------------------------------------------------------------------
+# Moodisto deployment stack
+# ---------------------------------------------------------------------------
+# This file builds nothing: it pulls the images that were pushed from the
+# development machine and runs them. Use it on the server.
+#
+#   docker compose -f docker-compose.deploy.yml pull
+#   docker compose -f docker-compose.deploy.yml up -d
+#
+# There is no PostgreSQL service here. The database is managed outside this
+# stack and reached through DATABASE_URL, so a `down -v` can never take the
+# venue's data with it.
+#
+# Everything the containers need is read from an env file next to this one;
+# copy .env.deploy.example to .env.deploy and fill it in.
+name: moodisto
+
+x-api-image: &api-image
+  image: ${API_IMAGE:-mobven/test:moodisto-api}
+  env_file:
+    - path: .env.deploy
+      required: true
+
+services:
+  # The schema is brought up to date before the API opens. A one-shot job, and
+  # finishing successfully is the API's start condition: an API bound to an
+  # outdated schema should not start at all rather than misbehave quietly.
+  migrate:
+    <<: *api-image
+    container_name: moodisto-migrate
+    restart: 'no'
+    command: ['pnpm', '--filter', '@moodisto/database', 'exec', 'prisma', 'migrate', 'deploy']
+
+  # Demo data, off by default. A production venue does not want it:
+  #   docker compose -f docker-compose.deploy.yml --profile seed run --rm seed
+  seed:
+    <<: *api-image
+    profiles: ['seed']
+    restart: 'no'
+    command: ['pnpm', '--filter', '@moodisto/database', 'exec', 'tsx', 'prisma/seed.ts']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  api:
+    <<: *api-image
+    container_name: moodisto-api
+    restart: unless-stopped
+    # pnpm and node run as PID 1, so an init process takes over signals and
+    # reaps orphans.
+    init: true
+    environment:
+      API_PORT: 3001
+    # Bound to the loopback interface: the reverse proxy in front of this stack
+    # is what the internet talks to, and the API is not exposed on its own.
+    ports:
+      - '127.0.0.1:${API_PORT:-3001}:3001'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    image: ${WEB_IMAGE:-mobven/test:moodisto-web}
+    container_name: moodisto-web
+    restart: unless-stopped
+    init: true
+    ports:
+      - '127.0.0.1:${WEB_PORT:-3000}:3000'
+    depends_on:
+      api:
+        condition: service_healthy

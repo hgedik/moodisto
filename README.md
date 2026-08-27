@@ -27,6 +27,7 @@ söylediğini gösterir.
 - [Testler](#testler)
 - [Production build](#production-build)
 - [Docker ile çalıştırma](#docker-ile-çalıştırma)
+- [Sunucuya yayınlama](#sunucuya-yayınlama)
 - [Domain akışı](#domain-akışı)
 - [API yüzeyi](#api-yüzeyi)
 - [Realtime olayları](#realtime-olayları)
@@ -407,10 +408,12 @@ docker compose --profile app down -v            # veriyi de sil
 
 Bilinmesi gerekenler:
 
-- **Web imajı ortama özeldir.** Next.js `NEXT_PUBLIC_API_URL` ve `NEXT_PUBLIC_APP_URL` değerlerini
-  build sırasında bundle'a gömer, bu yüzden başka bir alan adı için imajın yeniden build edilmesi
-  gerekir. Bu adresler tarayıcının gördüğü adreslerdir; konteyner ağındaki servis adları değil.
-  API imajı ortamdan bağımsızdır, bütün ayarlarını çalışma anında okur.
+- **Web imajı build sırasında adres gömer.** Next.js `NEXT_PUBLIC_API_URL` değerini bundle'a yazar,
+  bu yüzden ayrı alan adları kullanılıyorsa her adres için ayrı imaj gerekir. Bu adres tarayıcının
+  gördüğü adrestir; konteyner ağındaki servis adı değil. Tek istisna
+  [Sunucuya yayınlama](#sunucuya-yayınlama) bölümündeki kurulum: `NEXT_PUBLIC_API_URL` boş
+  bırakıldığında istekler aynı origin'e göreli olarak gider ve imaj alan adından bağımsız olur.
+  API imajı zaten ortamdan bağımsızdır, bütün ayarlarını çalışma anında okur.
 - **Secret'lar imaja girmez.** `.env` konteynere çalışma anında bağlanır, `.dockerignore` onu build
   context'inin dışında tutar. Dosya yoksa servis yine kalkar ve API kendi config doğrulamasında
   eksik değişkeni söyler.
@@ -424,6 +427,61 @@ Bilinmesi gerekenler:
   taşır; `pnpm db:*` script'lerinin beklediği `dotenv -e ../../.env` sarmalayıcısı konteynerde
   devrede olmadığı için komutlar `prisma migrate deploy` ve `tsx prisma/seed.ts` olarak doğrudan
   çağrılır.
+
+---
+
+## Sunucuya yayınlama
+
+Sunucuda kaynak kod ve toolchain yoktur: imajlar geliştirme makinesinde build edilip registry'ye
+push edilir, sunucu yalnızca `pull` eder. Bunun için **build etmeyen** ayrı bir compose dosyası var:
+`docker-compose.deploy.yml`. İçinde PostgreSQL servisi bulunmaz — veritabanı yığının dışında
+yönetilir ve `DATABASE_URL` ile bağlanılır, böylece bir `down -v` mekânın verisini götüremez.
+
+### İmajları build edip push etme (geliştirme makinesinde)
+
+```bash
+docker buildx build --platform linux/amd64 -f docker/Dockerfile --target api   -t mobven/test:moodisto-api -t mobven/test:moodisto-api-$(git rev-parse --short HEAD) --push .
+
+docker buildx build --platform linux/amd64 -f docker/Dockerfile --target web   --build-arg NEXT_PUBLIC_API_URL= --build-arg NEXT_PUBLIC_APP_URL=   -t mobven/test:moodisto-web -t mobven/test:moodisto-web-$(git rev-parse --short HEAD) --push .
+```
+
+`--platform` hedef sunucunun mimarisidir, geliştirme makinesininki değil: Apple Silicon üzerinde
+`linux/amd64` emülasyonla build edilir ve argon2'nin native derlemesi yüzünden ilk build uzun sürer,
+sonrakiler katman cache'inden hızlanır.
+
+Web imajı iki build argümanını **boş** alır. `NEXT_PUBLIC_API_URL` boş olduğunda API çağrıları
+`/api/...` biçiminde göreli gider, Socket.IO da sayfanın kendi origin'ine bağlanır; imaj tek bir
+alan adına çakılmaz ve aynı imaj her ortamda kullanılabilir.
+
+### Sunucudaki kurulum
+
+Sunucuya yalnızca iki dosya gerekir: `docker-compose.deploy.yml` ve yanına doldurulmuş
+`.env.deploy` (şablon: `.env.deploy.example`).
+
+```bash
+cp .env.deploy.example .env.deploy               # düzenleyip secret'ları girin
+docker compose -f docker-compose.deploy.yml pull
+docker compose -f docker-compose.deploy.yml up -d
+docker compose -f docker-compose.deploy.yml --profile seed run --rm seed   # yalnızca demo için
+```
+
+`migrate` başarıyla bitmeden API açılmaz, API sağlıklı olmadan web başlamaz. Yeni sürüme geçiş
+`pull` + `up -d`: migration yeniden çalışır, konteynerler değişen imajlarla yeniden oluşturulur.
+
+### Reverse proxy
+
+Her iki servis de `127.0.0.1` üzerine bağlanır; internete bakan taraf öndeki reverse proxy'dir.
+Tek alan adı kurulumunda proxy'nin şu yönlendirmeleri yapması gerekir:
+
+| Yol            | Hedef                                     |
+| -------------- | ----------------------------------------- |
+| `/api/*`       | `127.0.0.1:3001`                          |
+| `/socket.io/*` | `127.0.0.1:3001` (WebSocket upgrade açık) |
+| diğer her şey  | `127.0.0.1:3000`                          |
+
+`/socket.io` yolu atlanırsa uygulama açılır ama canlı güncellemeler çalışmaz. TLS proxy'de sonlanır;
+`.env.deploy` içindeki `NODE_ENV=production` çerezleri `Secure` yaptığı için düz http üzerinden
+oturum açılamaz.
 
 ---
 

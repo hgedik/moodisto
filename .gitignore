@@ -35,10 +35,11 @@ playwright/.cache/
 # ---------------------------------------------------------------------------
 # Ortam değişkenleri ve secret'lar
 # ---------------------------------------------------------------------------
-# .env.example dışında hiçbir env dosyası depoya girmez.
+# Örnek dosyalar dışında hiçbir env dosyası depoya girmez.
 .env
 .env.*
 !.env.example
+!.env.deploy.example
 *.pem
 *.key
 *.p12
