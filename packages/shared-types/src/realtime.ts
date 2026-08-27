@@ -12,6 +12,8 @@ export const RealtimeRoom = {
   admin: (venueId: string): string => `venue:${venueId}:admin`,
   player: (venueId: string): string => `venue:${venueId}:player`,
   request: (requestId: string): string => `request:${requestId}`,
+  /** Everything one guest sent, so their own list can follow it without watching the whole venue. */
+  guest: (customerSessionId: string): string => `guest:${customerSessionId}`,
 } as const;
 
 export const ServerEvent = {
@@ -78,4 +80,6 @@ export type RealtimeSubscription =
   | { readonly scope: 'venue-customers'; readonly venueSlug: string }
   | { readonly scope: 'venue-admin'; readonly venueId: string }
   | { readonly scope: 'venue-player'; readonly venueId: string }
-  | { readonly scope: 'request'; readonly requestId: string };
+  | { readonly scope: 'request'; readonly requestId: string }
+  // The guest never names their own session: the server reads it from the session cookie.
+  | { readonly scope: 'guest-requests' };

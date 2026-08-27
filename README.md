@@ -532,8 +532,10 @@ POST   /payments/mock/settle   yalnızca mock sağlayıcı; imzalı gövde ister
 ## Realtime olayları
 
 Socket.IO odaları: `venue:{id}:customers`, `venue:{id}:admin`, `venue:{id}:player`,
-`request:{requestId}`. Bir istemci yalnızca yetkili olduğu odaya abone olabilir; misafir kendi
-isteğini mekân genelinde değil, kendi `request:{id}` odasından takip eder.
+`request:{requestId}`, `guest:{customerSessionId}`. Bir istemci yalnızca yetkili olduğu odaya abone
+olabilir; misafir kendi isteğini mekân genelinde değil, tek bir istek için `request:{id}` odasından,
+"İsteklerim" listesinin tamamı için de `guest:{customerSessionId}` odasından takip eder. Misafir
+oturum kimliğini hiçbir zaman kendisi bildirmez: sunucu onu HttpOnly oturum çerezinden çözer.
 
 | Olay                  | Yön                                                               |
 | --------------------- | ----------------------------------------------------------------- |

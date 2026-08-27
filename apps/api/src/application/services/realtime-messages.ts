@@ -67,9 +67,21 @@ export const publishRequestCreated = (uow: UnitOfWork, payload: SongRequestDto):
   });
 };
 
-/** The customer follows their own request through a per-request room, never a venue-wide one. */
-export const publishRequestUpdated = (uow: UnitOfWork, payload: SongRequestDto): void => {
-  for (const room of [RealtimeRoom.admin(payload.venueId), RealtimeRoom.request(payload.id)]) {
+/**
+ * The customer follows their own request through rooms only they can join — the request's own room
+ * and the room of the guest session behind it — never through the venue-wide customer room, which
+ * would show one guest's request to everybody else in the venue.
+ */
+export const publishRequestUpdated = (
+  uow: UnitOfWork,
+  payload: SongRequestDto,
+  customerSessionId: string | null,
+): void => {
+  const rooms = [RealtimeRoom.admin(payload.venueId), RealtimeRoom.request(payload.id)];
+  if (customerSessionId) {
+    rooms.push(RealtimeRoom.guest(customerSessionId));
+  }
+  for (const room of rooms) {
     uow.publish({ room, event: ServerEvent.RequestUpdated, payload });
   }
 };

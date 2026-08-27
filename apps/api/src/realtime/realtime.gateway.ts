@@ -9,6 +9,7 @@ import type { Server, Socket } from 'socket.io';
 import { ClientEvent, RealtimeRoom, type RealtimeSubscription } from '@moodisto/shared-types';
 import {
   DATABASE,
+  type CustomerSessionRecord,
   type Database,
   type EventPublisher,
   type RealtimeMessage,
@@ -117,23 +118,36 @@ export class RealtimeGateway implements EventPublisher, OnGatewayConnection, OnM
       case 'venue-player':
         return RealtimeRoom.player(this.requireVenueUser(cookies, subscription.venueId));
       case 'request': {
-        const sessionToken = cookies[COOKIE_NAMES.customerSession];
-        if (!sessionToken) {
-          throw new Error('Misafir oturumu bulunamadı.');
-        }
-        const uow = this.database.read();
-        const [session, request] = await Promise.all([
-          uow.customerSessions.findByToken(sessionToken),
-          uow.songRequests.findById(subscription.requestId),
-        ]);
-        if (!session || !request || request.customerSessionId !== session.id) {
+        const session = await this.requireCustomerSession(cookies);
+        const request = await this.database.read().songRequests.findById(subscription.requestId);
+        if (!request || request.customerSessionId !== session.id) {
           throw new Error('Bu istek size ait değil.');
         }
         return RealtimeRoom.request(request.id);
       }
+      case 'guest-requests': {
+        // The room is named after the session behind the cookie, never after anything the browser
+        // sent: a guest can only ever end up in their own room.
+        const session = await this.requireCustomerSession(cookies);
+        return RealtimeRoom.guest(session.id);
+      }
       default:
         throw new Error('Geçersiz abonelik isteği.');
     }
+  }
+
+  private async requireCustomerSession(
+    cookies: Record<string, string>,
+  ): Promise<CustomerSessionRecord> {
+    const sessionToken = cookies[COOKIE_NAMES.customerSession];
+    if (!sessionToken) {
+      throw new Error('Misafir oturumu bulunamadı.');
+    }
+    const session = await this.database.read().customerSessions.findByToken(sessionToken);
+    if (!session) {
+      throw new Error('Misafir oturumu bulunamadı.');
+    }
+    return session;
   }
 
   private requireVenueUser(cookies: Record<string, string>, venueId: string): string {

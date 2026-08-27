@@ -41,7 +41,7 @@ export class ModerateSongRequestUseCase {
       });
 
       const dto = toSongRequestDto(queued);
-      publishRequestUpdated(uow, dto);
+      publishRequestUpdated(uow, dto, queued.customerSessionId);
 
       // A player tab waiting on an empty queue has nothing to react to on its own, so the server
       // puts the song it just accepted on the speakers before telling everyone where things stand.
@@ -65,7 +65,7 @@ export class ModerateSongRequestUseCase {
         rejectionReason: reason,
       });
       const dto = toSongRequestDto(rejected);
-      publishRequestUpdated(uow, dto);
+      publishRequestUpdated(uow, dto, rejected.customerSessionId);
       return dto;
     });
   }
@@ -86,7 +86,7 @@ export class ModerateSongRequestUseCase {
         status: RequestStatus.CANCELLED,
       });
       const dto = toSongRequestDto(cancelled);
-      publishRequestUpdated(uow, dto);
+      publishRequestUpdated(uow, dto, cancelled.customerSessionId);
       return dto;
     });
   }

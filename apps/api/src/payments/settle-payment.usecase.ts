@@ -74,7 +74,7 @@ export class SettlePaymentUseCase {
       if (target === RequestStatus.PENDING) {
         publishRequestCreated(uow, dto);
       }
-      publishRequestUpdated(uow, dto);
+      publishRequestUpdated(uow, dto, updated.customerSessionId);
     });
   }
 }

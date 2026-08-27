@@ -112,7 +112,7 @@ export class QueueService {
       const cancelled = await uow.songRequests.applyStatusChange(request.id, {
         status: RequestStatus.CANCELLED,
       });
-      publishRequestUpdated(uow, toSongRequestDto(cancelled));
+      publishRequestUpdated(uow, toSongRequestDto(cancelled), cancelled.customerSessionId);
     }
     const removed = await uow.queue.updateState(entry.id, QueueItemState.REMOVED, { endedAt: now });
     await this.compact(uow, venueId);
@@ -146,7 +146,7 @@ export class QueueService {
         status: target,
         completedAt: now,
       });
-      publishRequestUpdated(uow, toSongRequestDto(finished));
+      publishRequestUpdated(uow, toSongRequestDto(finished), finished.customerSessionId);
     }
     await uow.queue.updateState(
       current.id,
@@ -183,7 +183,7 @@ export class QueueService {
         status: RequestStatus.PLAYING,
         playingAt: now,
       });
-      publishRequestUpdated(uow, toSongRequestDto(playing));
+      publishRequestUpdated(uow, toSongRequestDto(playing), playing.customerSessionId);
     }
     const started = await uow.queue.updateState(next.id, QueueItemState.PLAYING, {
       startedAt: now,
