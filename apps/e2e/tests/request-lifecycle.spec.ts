@@ -70,6 +70,20 @@ test('a free request travels from the guest to the speakers and back', async ({ 
     await expect(guest.page.getByText('Çalıyor', { exact: true })).toBeVisible();
   });
 
+  await test.step('moving between console pages does not stop the music', async () => {
+    const playing = await venue.page.getByTestId('stub-player').getAttribute('data-track');
+
+    // A nav click, not goto(): a full document load legitimately releases the lease, while moving
+    // between console pages must not — that is the whole point of the dock.
+    await venue.page.getByRole('link', { name: 'Sıra' }).click();
+    // Exact, because the player's own "Sırada" heading would satisfy a substring match while the
+    // console is still on the player page.
+    await expect(venue.page.getByRole('heading', { name: 'Sıra', exact: true })).toBeVisible();
+
+    await expect(venue.page.getByTestId('stub-player')).toHaveAttribute('data-track', playing!);
+    await expect(guest.page.getByText('Çalıyor', { exact: true })).toBeVisible();
+  });
+
   await test.step('finishing the song completes the request and empties the queue', async () => {
     await venue.page.getByTestId('stub-ended').click();
 
