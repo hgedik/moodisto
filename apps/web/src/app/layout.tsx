@@ -21,7 +21,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="tr">
+    // Browser extensions stamp their own attributes onto <html> before React hydrates; that is a
+    // mismatch React cannot patch up and has nothing to do with this app's markup.
+    <html lang="tr" suppressHydrationWarning>
       <body className="min-h-dvh">{children}</body>
     </html>
   );
