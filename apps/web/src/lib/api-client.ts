@@ -1,17 +1,17 @@
 import type { ApiErrorBody } from '@moodisto/shared-types';
 
+import { buildRequestUrl, type QueryValue } from './request-url';
+
 /**
  * Empty on purpose when the API answers on the page's own origin — a single domain with a reverse
- * proxy in front of it. Every path below already starts with `/api`, so an empty base produces a
- * relative call and the same image works behind any domain.
+ * proxy in front of it. `buildRequestUrl` then keeps the call relative, and the same image works
+ * behind any domain.
  */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
 
 const CSRF_COOKIE = 'moodisto_csrf';
 const CSRF_HEADER = 'X-CSRF-Token';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-
-export const apiBaseUrl = API_URL;
 
 /**
  * Socket.IO needs an address it can dial, and it cannot make sense of an empty string: with the
@@ -59,7 +59,7 @@ const ensureCsrfToken = async (): Promise<string> => {
   if (existing) {
     return existing;
   }
-  await fetch(`${API_URL}/api/auth/session`, { credentials: 'include' });
+  await fetch(buildRequestUrl(API_URL, '/auth/session'), { credentials: 'include' });
   return readCookie(CSRF_COOKIE) ?? '';
 };
 
@@ -81,7 +81,7 @@ const parseErrorBody = async (response: Response): Promise<ApiError> => {
 export interface ApiRequestInit {
   readonly method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   readonly body?: unknown;
-  readonly query?: Record<string, string | number | boolean | undefined | null>;
+  readonly query?: Record<string, QueryValue>;
   readonly signal?: AbortSignal;
 }
 
@@ -93,12 +93,7 @@ export interface ApiRequestInit {
  */
 export const apiFetch = async <T>(path: string, init: ApiRequestInit = {}): Promise<T> => {
   const method = init.method ?? 'GET';
-  const url = new URL(`${API_URL}/api${path}`);
-  for (const [key, value] of Object.entries(init.query ?? {})) {
-    if (value !== undefined && value !== null && value !== '') {
-      url.searchParams.set(key, String(value));
-    }
-  }
+  const url = buildRequestUrl(API_URL, path, init.query ?? {});
 
   const headers: Record<string, string> = {};
   if (init.body !== undefined) {
@@ -108,7 +103,7 @@ export const apiFetch = async <T>(path: string, init: ApiRequestInit = {}): Prom
     headers[CSRF_HEADER] = await ensureCsrfToken();
   }
 
-  const response = await fetch(url.toString(), {
+  const response = await fetch(url, {
     method,
     credentials: 'include',
     headers,
