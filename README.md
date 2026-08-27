@@ -410,11 +410,12 @@ docker compose --profile app down -v            # veriyi de sil
 Bilinmesi gerekenler:
 
 - **Web imajı build sırasında adres gömer.** Next.js `NEXT_PUBLIC_API_URL` değerini bundle'a yazar,
-  bu yüzden ayrı alan adları kullanılıyorsa her adres için ayrı imaj gerekir. Bu adres tarayıcının
-  gördüğü adrestir; konteyner ağındaki servis adı değil. Tek istisna
-  [Sunucuya yayınlama](#sunucuya-yayınlama) bölümündeki kurulum: `NEXT_PUBLIC_API_URL` boş
-  bırakıldığında istekler aynı origin'e göreli olarak gider ve imaj alan adından bağımsız olur.
-  API imajı zaten ortamdan bağımsızdır, bütün ayarlarını çalışma anında okur.
+  çalışma anında değiştirilemez. Bu adres tarayıcının gördüğü adrestir; konteyner ağındaki servis
+  adı değil. Dockerfile'ın varsayılanı **boş**: istekler `/api/...` biçiminde aynı origin'e göreli
+  gider ve imaj alan adından bağımsız kalır. Bu compose dosyası varsayılanı ezip `localhost` adresini
+  geçer, çünkü burada web ve API ayrı portlarda ve aralarında reverse proxy yok. Ayrı alan adları
+  kullanılacaksa her adres için ayrı imaj gerekir. API imajı zaten ortamdan bağımsızdır, bütün
+  ayarlarını çalışma anında okur.
 - **Secret'lar imaja girmez.** `.env` konteynere çalışma anında bağlanır, `.dockerignore` onu build
   context'inin dışında tutar. Dosya yoksa servis yine kalkar ve API kendi config doğrulamasında
   eksik değişkeni söyler.
@@ -443,16 +444,18 @@ yönetilir ve `DATABASE_URL` ile bağlanılır, böylece bir `down -v` mekânın
 ```bash
 docker buildx build --platform linux/amd64 -f docker/Dockerfile --target api   -t mobven/test:moodisto-api -t mobven/test:moodisto-api-$(git rev-parse --short HEAD) --push .
 
-docker buildx build --platform linux/amd64 -f docker/Dockerfile --target web   --build-arg NEXT_PUBLIC_API_URL= --build-arg NEXT_PUBLIC_APP_URL=   -t mobven/test:moodisto-web -t mobven/test:moodisto-web-$(git rev-parse --short HEAD) --push .
+docker buildx build --platform linux/amd64 -f docker/Dockerfile --target web   -t mobven/test:moodisto-web -t mobven/test:moodisto-web-$(git rev-parse --short HEAD) --push .
 ```
 
 `--platform` hedef sunucunun mimarisidir, geliştirme makinesininki değil: Apple Silicon üzerinde
 `linux/amd64` emülasyonla build edilir ve argon2'nin native derlemesi yüzünden ilk build uzun sürer,
 sonrakiler katman cache'inden hızlanır.
 
-Web imajı iki build argümanını **boş** alır. `NEXT_PUBLIC_API_URL` boş olduğunda API çağrıları
-`/api/...` biçiminde göreli gider, Socket.IO da sayfanın kendi origin'ine bağlanır; imaj tek bir
-alan adına çakılmaz ve aynı imaj her ortamda kullanılabilir.
+Web imajına adres geçilmez: `NEXT_PUBLIC_API_URL` ve `NEXT_PUBLIC_APP_URL` Dockerfile'da boş
+varsayılana sahiptir. Boş olduklarında API çağrıları `/api/...` biçiminde göreli gider, Socket.IO da
+sayfanın kendi origin'ine bağlanır; imaj tek bir alan adına çakılmaz ve aynı imaj her ortamda
+kullanılabilir. Bu yüzden imajın önünde `/api` ve `/socket.io` yollarını API'ye taşıyan bir reverse
+proxy bulunmalıdır.
 
 ### Sunucudaki kurulum
 

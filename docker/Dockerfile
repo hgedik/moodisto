@@ -11,9 +11,12 @@
 #   docker build -f docker/Dockerfile --target api .
 #   docker build -f docker/Dockerfile --target web .
 #
-# The web image is environment-specific: Next.js inlines `NEXT_PUBLIC_*` into
-# the bundle at build time, so a different host name means a different image.
-# The API image is not — it reads every setting at run time.
+# Next.js inlines `NEXT_PUBLIC_*` into the bundle at build time. By default
+# those addresses are left empty, which means "the API answers on the page's
+# own origin" — one image behind any domain, given a reverse proxy in front.
+# Building for a separate API host is the exception and needs the build
+# arguments below. The API image is not environment-specific at all — it reads
+# every setting at run time.
 
 # ---------------------------------------------------------------------------
 # base — shared by every stage
@@ -103,8 +106,12 @@ FROM workspace AS web-build
 # them into the bundle and they cannot be changed at run time. Nothing is
 # fetched server-side, so these are the addresses the browser sees — not the
 # service names inside the container network.
-ARG NEXT_PUBLIC_API_URL=http://localhost:3001
-ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
+#
+# Empty is the default on purpose: the browser then calls the origin it loaded
+# the page from, so the shipped image carries no host name of its own. Set them
+# only when the API really lives somewhere else.
+ARG NEXT_PUBLIC_API_URL=
+ARG NEXT_PUBLIC_APP_URL=
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \
     NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL} \
     NODE_ENV=production
