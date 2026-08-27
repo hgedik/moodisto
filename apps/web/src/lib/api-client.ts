@@ -1,5 +1,10 @@
 import type { ApiErrorBody } from '@moodisto/shared-types';
 
+/**
+ * Empty on purpose when the API answers on the page's own origin — a single domain with a reverse
+ * proxy in front of it. Every path below already starts with `/api`, so an empty base produces a
+ * relative call and the same image works behind any domain.
+ */
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
 
 const CSRF_COOKIE = 'moodisto_csrf';
@@ -7,6 +12,13 @@ const CSRF_HEADER = 'X-CSRF-Token';
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 export const apiBaseUrl = API_URL;
+
+/**
+ * Socket.IO needs an address it can dial, and it cannot make sense of an empty string: with the
+ * API on the page's own origin the socket is pointed at that origin explicitly.
+ */
+export const socketUrl = (): string =>
+  API_URL || (typeof window === 'undefined' ? '' : window.location.origin);
 
 /** A failure the API described in its error body, so the UI can react to `code` and not to prose. */
 export class ApiError extends Error {

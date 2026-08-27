@@ -8,7 +8,7 @@ import {
   type RealtimeSubscription,
   type ServerEventPayloads,
 } from '@moodisto/shared-types';
-import { apiBaseUrl } from './api-client';
+import { socketUrl } from './api-client';
 
 export type RealtimeHandlers = {
   readonly [E in ServerEvent]?: (payload: ServerEventPayloads[E]) => void;
@@ -51,7 +51,7 @@ export const useRealtime = (
       return;
     }
     const rooms = JSON.parse(key) as RealtimeSubscription[];
-    const socket: Socket = io(apiBaseUrl, {
+    const socket: Socket = io(socketUrl(), {
       path: '/socket.io',
       withCredentials: true,
       transports: ['websocket', 'polling'],
