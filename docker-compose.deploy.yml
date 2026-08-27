@@ -64,6 +64,14 @@ services:
     container_name: moodisto-web
     restart: unless-stopped
     init: true
+    # The browser addresses were baked into the bundle at build time and cannot
+    # be changed here. They are repeated because the Next.js server reads them
+    # again when it writes the Content-Security-Policy: empty means "the API is
+    # on this very origin", which `'self'` already covers, while leaving them
+    # unset would put a stray localhost back into the policy.
+    environment:
+      NEXT_PUBLIC_API_URL: ''
+      NEXT_PUBLIC_APP_URL: ''
     ports:
       - '127.0.0.1:${WEB_PORT:-3000}:3000'
     depends_on:
